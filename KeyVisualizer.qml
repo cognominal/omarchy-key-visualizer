@@ -96,7 +96,7 @@ Item {
   property string mode: "all"
   property string position: "bottom-center"
   property int margin: Style.space(67)
-  readonly property var modLabels: ["Super", "Ctrl", "Alt", "Shift", "Menu", "AltGr"]
+  readonly property var modLabels: ["Super", "Ctrl", "Alt", "Alt R", "Shift", "Menu", "AltGr"]
 
   // Options live at ~/.config/omarchy/key-visualizer.json rather than inside the
   // plugin folder on purpose: the shell watches every file under

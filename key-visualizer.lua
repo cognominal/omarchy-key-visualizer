@@ -66,14 +66,14 @@ end
 local MODS = {
   [50] = "Shift",  [62] = "Shift",   -- Shift_L / Shift_R
   [37] = "Ctrl",   [105] = "Ctrl",   -- Control_L / Control_R
-  [64] = "Alt",    [108] = "Alt",    -- Alt_L / Alt_R (AltGr on some layouts)
+  [64] = "Alt",    [108] = "Alt R",  -- Alt_L / Alt_R (AltGr on some layouts)
   [133] = "Super", [134] = "Super",  -- Super_L / Super_R
   [135] = "Menu",
   [109] = "AltGr",                   -- ISO_Level3_Shift
 }
 
 -- Display order for modifier chips.
-local MOD_ORDER = { "Super", "Ctrl", "Alt", "Shift", "Menu", "AltGr" }
+local MOD_ORDER = { "Super", "Ctrl", "Alt", "Alt R", "Shift", "Menu", "AltGr" }
 
 -- Keycap-style labels for keys that don't produce a printable character.
 local KEYS = {
