@@ -1014,7 +1014,10 @@ Item {
                 width: root.chipGroupWidth(modelData)
                 height: root.chipHeight
                 radius: Math.max(3, Style.cornerRadius - 1)
-                color: Util.alpha(Color.popups.text, 0.10)
+                // Named keys (Space, Backspace, Esc, ...) get a lighter fill
+                // than plain typed-text chips, so they read as distinct
+                // "special key" chrome rather than more typed characters.
+                color: Util.alpha(Color.popups.text, modelData.kind === "named" ? 0.18 : 0.10)
                 border.color: Util.alpha(Color.popups.text, 0.35)
                 border.width: 1
 
