@@ -173,18 +173,52 @@ Item {
   readonly property int chipPadY: Style.space(4)
   readonly property int chipHeight: Math.ceil(chipFontMetrics.height) + 2 * chipPadY
 
+  // Groups the entry's keys into chips: a "named" key (Esc, Tab, F1,
+  // Backspace, Super, ...) always has a multi-character label and gets its
+  // own chip, collapsing a run of identical repeats (autorepeat, or the
+  // same key retyped back to back) into a "Label×N" count badge — it reads
+  // as itself, not as a word, so spelling it out N times would just be
+  // noise. A single printable character is different: it already reads
+  // fine repeated (autorepeat "a" is legibly "aaaaaa"), so consecutive
+  // single-character keys are grouped into one chip and printed as a plain
+  // fused string instead, with no count suffix and no per-letter borders.
+  function chipGroups(keys) {
+    var groups = []
+    var i = 0
+    while (i < keys.length) {
+      var label = keys[i]
+      if (label.length === 1) {
+        var text = ""
+        while (i < keys.length && keys[i].length === 1) { text += keys[i]; i++ }
+        groups.push({ kind: "text", text: text })
+      } else {
+        var count = 1
+        i++
+        while (i < keys.length && keys[i] === label) { count++; i++ }
+        groups.push({ kind: "named", label: label, count: count })
+      }
+    }
+    return groups
+  }
+
+  function groupDisplayText(group) {
+    if (group.kind === "text") return group.text
+    return group.count > 1 ? group.label + "×" + group.count : group.label
+  }
+
   // Stateless measurement: FontMetrics.advanceWidth(text) returns the
   // width for the given string directly. The previous shared TextMetrics
   // (text set imperatively inside the width bindings) went stale from the
   // third chip onwards, collapsing every container to single-char width.
-  function chipWidth(label) {
-    return Math.ceil(chipFontMetrics.advanceWidth(String(label))) + 2 * chipPadX
+  function chipGroupWidth(group) {
+    return Math.ceil(chipFontMetrics.advanceWidth(root.groupDisplayText(group))) + 2 * chipPadX
   }
 
   function rowWidth(keys) {
+    var groups = root.chipGroups(keys)
     var w = 0
-    for (var i = 0; i < keys.length; i++) w += chipWidth(keys[i])
-    return w + Math.max(0, keys.length - 1) * chipGap
+    for (var i = 0; i < groups.length; i++) w += root.chipGroupWidth(groups[i])
+    return w + Math.max(0, groups.length - 1) * chipGap
   }
 
   // The card sizes to the widest history row, not the current one, so a
@@ -973,22 +1007,49 @@ Item {
             opacity: root.entryOpacity(modelData.pos)
 
             Repeater {
-              model: modelData.entry.keys
+              model: root.chipGroups(modelData.entry.keys)
 
               delegate: Rectangle {
-                required property string modelData
-                width: root.chipWidth(modelData)
+                required property var modelData
+                width: root.chipGroupWidth(modelData)
                 height: root.chipHeight
                 radius: Math.max(3, Style.cornerRadius - 1)
                 color: Util.alpha(Color.popups.text, 0.10)
                 border.color: Util.alpha(Color.popups.text, 0.35)
                 border.width: 1
 
+                // A run of consecutive plain characters (typing, or an
+                // autorepeated letter) renders as one plain fused string
+                // ("aaaaaa"), no per-letter chips and no count suffix.
                 Text {
+                  visible: modelData.kind === "text"
                   anchors.centerIn: parent
-                  text: parent.modelData
+                  text: modelData.text
                   font: root.chipFont
                   color: Color.popups.text
+                }
+
+                // A named key (Esc, Tab, F1, Backspace, ...) keeps its own
+                // chip; a run of 2+ identical repeats collapses into one
+                // chip with the count called out in red instead of one
+                // chip per occurrence.
+                Row {
+                  visible: modelData.kind === "named"
+                  anchors.centerIn: parent
+                  spacing: 0
+
+                  Text {
+                    text: modelData.kind === "named" ? modelData.label : ""
+                    font: root.chipFont
+                    color: Color.popups.text
+                  }
+
+                  Text {
+                    visible: modelData.kind === "named" && modelData.count > 1
+                    text: modelData.kind === "named" ? ("×" + modelData.count) : ""
+                    font: root.chipFont
+                    color: Color.urgent
+                  }
                 }
               }
             }
