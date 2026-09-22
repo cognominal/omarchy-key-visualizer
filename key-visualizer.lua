@@ -205,6 +205,21 @@ local function emit()
   secure_write(STATE_FILE, payload)
 end
 
+-- Autorepeat of a solo plain key (no modifiers, one key held): force a
+-- release+press toggle so the panel sees two distinct payloads instead of
+-- the identical one emit()'s own dedupe would otherwise drop. Its
+-- typing-merge logic (KeyVisualizer.qml) then appends one more occurrence
+-- of the key each tick, so holding "a" grows the box into "a a a a".
+-- Chorded repeats (holding Alt+Tab, a bound repeat, etc.) are left alone —
+-- spamming the chord's chip would be noise for keybinding tutorials.
+local function emit_repeat_tick()
+  if not STATE_FILE then return end
+  local empty_payload = '{"keys":[],"t":' .. os.time() .. '}'
+  secure_write(STATE_FILE, empty_payload)
+  last_payload = empty_payload
+  emit()
+end
+
 -- Super-held flag: the panel/display watches this to know when to capture the
 -- SUPER+drag on the overlay (instead of a window underneath). Written only on
 -- transitions so it does not spam the filesystem on every key.
@@ -232,9 +247,12 @@ emit_super()
 -- in which you let go of a shortcut doesn't matter: Ctrl+Shift+N stays
 -- Ctrl+Shift+N whether you release Ctrl, Shift, or N first.
 --
--- state: 0 = released, 1 = pressed, 2 = repeat (ignored).
+-- state: 0 = released, 1 = pressed, 2 = repeat.
 hl.on("input.keyboard.key", function(keycode, timeMs, state)
-  if state == 2 then return end
+  if state == 2 then
+    if #combo == 1 and #non_shift_mods_down() == 0 then emit_repeat_tick() end
+    return
+  end
 
   if state == 1 then
     pressed[keycode] = true

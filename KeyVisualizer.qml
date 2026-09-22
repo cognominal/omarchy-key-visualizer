@@ -34,6 +34,14 @@ Item {
   // and the top combo was never released, we treat it as released so the
   // panel self-heals instead of freezing on a stale combo forever.
   property real lastStateT: 0
+  // Raw JSON of the last `keys` array actually applied. The Lua side
+  // chmods the state file after every write (secure_write), which fires a
+  // second, content-identical file-changed event; without this guard that
+  // redundant re-apply() re-derives the same "next" from a since-mutated
+  // top entry (e.g. after a merge) and no longer recognizes it as the same
+  // combo, corrupting the history. Any repeat of the same payload is a
+  // pure echo and is skipped outright.
+  property string lastAppliedNextRaw: ""
   // How many combos stay on screen (1..5, default 1). Older entries fade
   // out via the entryOpacity() gradient; a count of 1 is the classic
   // current-combo-only display.
@@ -490,6 +498,9 @@ Item {
       }
       if (!hasMod) next = []
     }
+    var nextRaw = JSON.stringify(next)
+    if (nextRaw === root.lastAppliedNextRaw) return
+    root.lastAppliedNextRaw = nextRaw
     var es = root.entries.slice()
     if (next.length === 0) {
       // All keys released: the newest combo enters its linger window; the
@@ -510,9 +521,13 @@ Item {
           root.pressCombo(completed)
         }
       }
-    } else if (es.length > 0 && root.sameKeys(es[0].keys, next)) {
-      // Same combo re-pressed (or the state file re-fired): refresh it,
-      // no duplicate history entry.
+    } else if (es.length > 0 && es[0].releasedAt === 0 && root.sameKeys(es[0].keys, next)) {
+      // The still-held chord's payload re-fired unchanged (a duplicate
+      // write, since a real state change always alters the key set):
+      // refresh it, no duplicate history entry. Restricted to "still
+      // held" so a genuinely released-then-re-pressed key (autorepeat,
+      // retyping the same letter) falls through to the typing-merge branch
+      // below and grows the box instead of collapsing to one chip.
       es[0] = { keys: es[0].keys, releasedAt: 0 }
     } else if (es.length > 0 && es[0].releasedAt === 0 && root.isSupersetOf(es[0].keys, next)) {
       // The chord is still being held and only grew (Super Ctrl Shift 1
