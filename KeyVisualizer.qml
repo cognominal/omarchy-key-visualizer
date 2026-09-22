@@ -83,6 +83,11 @@ Item {
   // session after a restart) so a stale combo never sticks on screen.
   readonly property int maxStateAgeMs: 1500
 
+  // Cap on how many plain typed keys accumulate into one box (see apply()'s
+  // typing-merge branch) before the oldest are dropped, so a long typing
+  // burst never grows the card past a sane width.
+  readonly property int typingGroupMaxKeys: 24
+
   // Options read from config.json in the plugin folder (created with
   // defaults on first run, hot-reloaded on save):
   //   mode     "all" | "bindings" — bindings only shows combos with a
@@ -514,6 +519,15 @@ Item {
       // pressed key-by-key): partial states are noise, so update the entry
       // in place instead of pushing a history row for each partial combo.
       es[0] = { keys: next.slice(), releasedAt: 0 }
+    } else if (es.length > 0 && es[0].releasedAt !== 0 &&
+               root.modCountOf(es[0].keys) === 0 && root.modCountOf(next) === 0) {
+      // Consecutive plain typing (no modifiers, previous key already
+      // released): grow the same box into a running sentence instead of
+      // starting a new history row per keystroke. A chorded combo (or the
+      // box's linger window passing) still starts a fresh box.
+      var merged = es[0].keys.concat(next)
+      if (merged.length > root.typingGroupMaxKeys) merged = merged.slice(merged.length - root.typingGroupMaxKeys)
+      es[0] = { keys: merged, releasedAt: 0 }
     } else {
       // A new combo arrived: the previous combo becomes a history entry
       // (it keeps lingering) and the new one takes the top of the stack.
