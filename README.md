@@ -55,8 +55,8 @@ omarchy-shell key-visualizer resume
 - **Typing** — shows the character: `g`, `G`, `!`, `5`. Consecutive plain
   keystrokes (no modifier held) grow the same box into a running sentence
   instead of each replacing the last, e.g. typing `hello` shows `h e l l o`
-  together; a modifier combo, or a pause past the linger window, starts a
-  fresh box.
+  together, as long as each key follows the last within 2/3 of the linger
+  time; a modifier combo, or a longer pause, starts a fresh box.
 - **Combos** — modifiers plus the key, shown as a unit: `Super Shift G`.
   The combination stays intact no matter the order you release it.
 - **Non-printing keys** — labeled: `Esc`, `Tab`, `F1`, arrows, `Space`.

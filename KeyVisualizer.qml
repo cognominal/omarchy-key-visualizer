@@ -520,11 +520,14 @@ Item {
       // in place instead of pushing a history row for each partial combo.
       es[0] = { keys: next.slice(), releasedAt: 0 }
     } else if (es.length > 0 && es[0].releasedAt !== 0 &&
-               root.modCountOf(es[0].keys) === 0 && root.modCountOf(next) === 0) {
-      // Consecutive plain typing (no modifiers, previous key already
-      // released): grow the same box into a running sentence instead of
-      // starting a new history row per keystroke. A chorded combo (or the
-      // box's linger window passing) still starts a fresh box.
+               root.modCountOf(es[0].keys) === 0 && root.modCountOf(next) === 0 &&
+               (root.lingerMs <= 0 || Date.now() - es[0].releasedAt < root.lingerMs * 2 / 3)) {
+      // Consecutive plain typing (no modifiers, previous key released less
+      // than 2/3 of the linger time ago): grow the same box into a running
+      // sentence instead of starting a new history row per keystroke. A
+      // chorded combo, or too long a pause between keys, still starts a
+      // fresh box. lingerMs 0 ("never hide") has no natural time cap, so
+      // typing always keeps merging in that mode.
       var merged = es[0].keys.concat(next)
       if (merged.length > root.typingGroupMaxKeys) merged = merged.slice(merged.length - root.typingGroupMaxKeys)
       es[0] = { keys: merged, releasedAt: 0 }
