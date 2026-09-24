@@ -681,7 +681,7 @@ Item {
     path: root.pausePath
     watchChanges: true
     printErrors: false
-    onLoaded: root.paused = (text() === "1")
+    onLoaded: root.pauseLoaded(text() === "1")
     onFileChanged: reload()
   }
 
@@ -697,6 +697,23 @@ Item {
   onPausedChanged: if (root.paused) {
     root.entries = []
     root.opened = false
+  }
+
+  // False until the pause flag has been read once, so the shell starting up
+  // (or reloading the plugin) does not flash the on/off notice.
+  property bool pauseStateKnown: false
+
+  // Applies the pause flag and, on a real change, shows a transient
+  // "Key visualizer on/off" chip in the card itself — same place as the
+  // keys, and on every monitor, since each instance watches the flag.
+  function pauseLoaded(p) {
+    var changed = root.pauseStateKnown && p !== root.paused
+    root.paused = p
+    root.pauseStateKnown = true
+    if (!changed) return
+    root.lastAppliedNextRaw = ""
+    root.entries = [{ keys: ["Key visualizer " + (p ? "off" : "on")], releasedAt: Date.now() }]
+    root.opened = true
   }
 
   function setPaused(p) {
