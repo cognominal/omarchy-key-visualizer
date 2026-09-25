@@ -6,7 +6,7 @@ and screencasts.
 
 ## Preview
 
-![Key Visualizer preview](preview.png)
+![Typed text fused into one chip, with repeated Backspace counted](kv-popup.png)
 
 ![Combo mode in action](combo-mode.gif)
 
