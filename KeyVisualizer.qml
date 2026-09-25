@@ -182,7 +182,15 @@ Item {
   // fine repeated (autorepeat "a" is legibly "aaaaaa"), so consecutive
   // single-character keys are grouped into one chip and printed as a plain
   // fused string instead, with no count suffix and no per-letter borders.
+  // Space and Tab typed without modifiers are part of the text too, so
+  // they're rendered as their Unicode symbols (␣, ⇥) and fused into the
+  // current string chip; in a chord (Alt+Tab, Super+Space) they stay named.
+  readonly property var textSymbols: ({ "Space": "\u2423", "Tab": "\u21E5" })
+
   function chipGroups(keys) {
+    if (root.modCountOf(keys) === 0) {
+      keys = keys.map(function (k) { return root.textSymbols[k] || k })
+    }
     var groups = []
     var i = 0
     while (i < keys.length) {
