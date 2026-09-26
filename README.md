@@ -41,6 +41,10 @@ The keyboard glyph (right section by default) opens a small menu:
 - **History** — how many combos stack on screen (1–5); older ones fade.
 - **Combo mode** — turns the display into a game counter with score and
   effects (see below).
+- **Show mouse buttons** — an always-on mouse box that lights up the
+  clicked button.
+- **Cursor ring** — draw a colored ring around the cursor while a mouse
+  button is held.
 
 You can also drive it from the terminal:
 
@@ -76,6 +80,19 @@ omarchy-shell key-visualizer resume
   display fades away, the score resets too.
 - **Bindings only** — shows only combos with a modifier; plain typing stays
   off screen.
+- **Mouse box** — a small box with a mouse in it stays on screen whenever
+  the visualizer is on, pinned at the chosen position so it never moves;
+  the key card sits beside it. Clicks never enter the scrolling key
+  history: the clicked button lights up in the box in its color (left
+  blue, middle green, right orange) while held, and for a moment after a
+  quick click.
+- **On/off notice** — pausing or resuming shows `Key visualizer off` /
+  `on` for a moment in its own box next to the mouse box, not in the key
+  history.
+- **Cursor ring** — while a mouse button is held, a ring follows the
+  cursor in that button's color, split into one arc per button when several
+  are held, and fades out where you let go. Clicks still pass through to
+  the app underneath.
 
 ## Customize
 
@@ -88,7 +105,9 @@ Options live in `~/.config/omarchy/key-visualizer.json` and apply live:
   "margin": 67,
   "lingerMs": 1000,
   "historyCount": 1,
-  "comboMode": false
+  "comboMode": false,
+  "showMouse": true,
+  "cursorRing": true
 }
 ```
 
@@ -100,6 +119,8 @@ Options live in `~/.config/omarchy/key-visualizer.json` and apply live:
 | `lingerMs`     | how long a released combo stays; `0` = keep until the next key | `1000` |
 | `historyCount` | combos stacked on screen (1–5)                    | `1`             |
 | `comboMode`    | game counter, score and effects                   | `false`         |
+| `showMouse`    | always-on mouse box lighting the clicked button   | `true`          |
+| `cursorRing`   | ring around the cursor while a button is held     | `true`          |
 
 ## Roadmap
 

@@ -49,9 +49,13 @@ if not is_runtime_secure(runtime) then
 end
 local STATE_FILE = runtime and (runtime .. "/omarchy-key-visualizer.json") or nil
 local SUPER_FLAG = runtime and (runtime .. "/omarchy-key-visualizer-super") or nil
+-- Held mouse buttons and the cursor position while any is held; drives the
+-- panel's mouse chip and cursor ring. Kept apart from STATE_FILE because it is rewritten ~60 times
+-- a second during a drag, which must not churn the key history.
+local MOUSE_FILE = runtime and (runtime .. "/omarchy-key-visualizer-mouse.json") or nil
 
 local function secure_write(path, content)
-  if not runtime or (path ~= STATE_FILE and path ~= SUPER_FLAG) then return false end
+  if not runtime or (path ~= STATE_FILE and path ~= SUPER_FLAG and path ~= MOUSE_FILE) then return false end
   -- FileView watches the existing inode. These are fixed paths inside the
   -- current user's private runtime directory, so update them in place.
   local f = io.open(path, "w")
@@ -285,3 +289,55 @@ hl.on("input.keyboard.key", function(keycode, timeMs, state)
     if not any_down then emit() end
   end
 end)
+
+-- Mouse buttons. Hyprland's Lua config has no pointer-button event, so each
+-- of the three buttons gets a pair of pass-through binds (press, release).
+-- non_consuming lets the click still reach the app; ignore_mods makes the
+-- binds fire with modifiers held too (Ctrl+click).
+--
+-- Buttons stay out of the key history: the panel shows them on a fixed
+-- mouse chip and a ring around the cursor, both fed from MOUSE_FILE. While
+-- any button is held a timer samples the cursor position into it; the timer
+-- stops as soon as the last button goes up, so an idle mouse costs nothing.
+local BUTTONS = { { code = 272, name = "L" }, { code = 274, name = "M" }, { code = 273, name = "R" } }
+local buttons_down = {} -- button code -> true
+
+-- The file is rewritten at ~60Hz during a drag: secure_write's chmod forks a
+-- shell, so it is only paid once here and plain writes are used afterwards.
+local mouse_ready = MOUSE_FILE and secure_write(MOUSE_FILE, '{"buttons":[]}')
+
+local last_mouse_payload = ""
+local function emit_mouse()
+  if not mouse_ready then return end
+  local held = {}
+  for _, b in ipairs(BUTTONS) do
+    if buttons_down[b.code] then held[#held + 1] = '"' .. b.name .. '"' end
+  end
+  local payload = '{"buttons":[' .. table.concat(held, ",") .. ']'
+  if #held > 0 then
+    local pos = hl.get_cursor_pos()
+    if pos then payload = payload .. ',"x":' .. math.floor(pos.x) .. ',"y":' .. math.floor(pos.y) end
+  end
+  payload = payload .. '}'
+  if payload == last_mouse_payload then return end
+  last_mouse_payload = payload
+  local f = io.open(MOUSE_FILE, "w")
+  if not f then return end
+  f:write(payload)
+  f:close()
+end
+
+local mouse_timer = hl.timer(emit_mouse, { timeout = 16, type = "repeat" })
+mouse_timer:set_enabled(false)
+
+local function on_button(code, down)
+  buttons_down[code] = down or nil
+  emit_mouse()
+  mouse_timer:set_enabled(next(buttons_down) ~= nil)
+end
+
+for _, b in ipairs(BUTTONS) do
+  local key = "mouse:" .. b.code
+  hl.bind(key, function() on_button(b.code, true) end, { non_consuming = true, ignore_mods = true })
+  hl.bind(key, function() on_button(b.code, false) end, { non_consuming = true, ignore_mods = true, release = true })
+end

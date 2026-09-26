@@ -30,6 +30,8 @@ Panel {
   property int lingerMs: 1000
   property int historyCount: 1
   property bool comboMode: false
+  property bool showMouse: true
+  property bool cursorRing: true
   // Manual fine-tune offsets (px) written by the D-pad; reset when a preset
   // position is chosen from the dropdown.
   property int offsetX: 0
@@ -91,6 +93,8 @@ Panel {
     if (isFinite(cfg.lingerMs) && cfg.lingerMs >= 0) root.lingerMs = Math.round(cfg.lingerMs)
     if (isFinite(cfg.historyCount)) root.historyCount = Math.max(1, Math.min(5, Math.round(cfg.historyCount)))
     root.comboMode = cfg.comboMode === true
+    root.showMouse = cfg.showMouse !== false
+    root.cursorRing = cfg.cursorRing !== false
     if (isFinite(cfg.offsetX)) root.offsetX = Math.round(cfg.offsetX)
     if (isFinite(cfg.offsetY)) root.offsetY = Math.round(cfg.offsetY)
   }
@@ -105,6 +109,8 @@ Panel {
       lingerMs: root.lingerMs,
       historyCount: root.historyCount,
       comboMode: root.comboMode,
+      showMouse: root.showMouse,
+      cursorRing: root.cursorRing,
       offsetX: root.offsetX,
       offsetY: root.offsetY
     }
@@ -113,6 +119,8 @@ Panel {
     if (update.position !== undefined) root.position = update.position
     if (update.historyCount !== undefined) root.historyCount = update.historyCount
     if (update.comboMode !== undefined) root.comboMode = update.comboMode
+    if (update.showMouse !== undefined) root.showMouse = update.showMouse
+    if (update.cursorRing !== undefined) root.cursorRing = update.cursorRing
     if (update.offsetX !== undefined) root.offsetX = update.offsetX
     if (update.offsetY !== undefined) root.offsetY = update.offsetY
     writeProc.command = ["sh", "-c",
@@ -289,6 +297,57 @@ Panel {
           foreground: Color.popups.text
           accent: Color.accent
           onToggled: root.writeConfig({ comboMode: !root.comboMode })
+        }
+      }
+
+      // Mouse -----------------------------------------------------------
+      // Clicks as chips in the card, and a colored ring around the cursor
+      // while a button is held.
+      Item {
+        width: parent.width
+        height: mouseSwitch.implicitHeight
+
+        Text {
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          text: "Show mouse buttons"
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          color: Color.popups.text
+        }
+
+        ToggleSwitch {
+          id: mouseSwitch
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          checked: root.showMouse
+          foreground: Color.popups.text
+          accent: Color.accent
+          onToggled: root.writeConfig({ showMouse: !root.showMouse })
+        }
+      }
+
+      Item {
+        width: parent.width
+        height: ringSwitch.implicitHeight
+
+        Text {
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          text: "Cursor ring"
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          color: Color.popups.text
+        }
+
+        ToggleSwitch {
+          id: ringSwitch
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          checked: root.cursorRing
+          foreground: Color.popups.text
+          accent: Color.accent
+          onToggled: root.writeConfig({ cursorRing: !root.cursorRing })
         }
       }
 

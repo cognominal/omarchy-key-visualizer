@@ -109,6 +109,12 @@ Item {
   property string mode: "all"
   property string position: "bottom-center"
   property int margin: Style.space(67)
+  //   showMouse  show a mouse box beside the card that lights up the
+  //              clicked button (default true).
+  //   cursorRing draw a ring around the cursor while a button is held
+  //              (default true).
+  property bool showMouse: true
+  property bool cursorRing: true
   readonly property var modLabels: ["Super", "Ctrl", "Alt", "Alt R", "Shift", "Menu", "AltGr"]
 
   // Options live at ~/.config/omarchy/key-visualizer.json rather than inside the
@@ -213,6 +219,12 @@ Item {
     if (group.kind === "text") return group.text
     return group.count > 1 ? group.label + "×" + group.count : group.label
   }
+
+  // Mouse buttons: each has its own color, used both for the highlighted
+  // segment of the fixed mouse chip and for the cursor ring.
+  readonly property var buttonColors: ({ "L": "#4c9aff", "M": "#2ecc71", "R": "#ff9f43" })
+  readonly property int mouseIconHeight: Math.round(chipFontMetrics.height * 1.15)
+  readonly property int mouseIconWidth: Math.round(mouseIconHeight * 0.7)
 
   // Stateless measurement: FontMetrics.advanceWidth(text) returns the
   // width for the given string directly. The previous shared TextMetrics
@@ -540,6 +552,7 @@ Item {
       }
       if (!hasMod) next = []
     }
+
     var nextRaw = JSON.stringify(next)
     if (nextRaw === root.lastAppliedNextRaw) return
     root.lastAppliedNextRaw = nextRaw
@@ -597,7 +610,7 @@ Item {
       es.unshift({ keys: next, releasedAt: 0 })
     }
     root.entries = root.trimEntries(es)
-    root.opened = root.entries.length > 0
+    root.updateOpened()
   }
 
   // Prunes entries whose linger window passed and caps the stack at
@@ -626,7 +639,7 @@ Item {
         if (e.releasedAt === 0 || root.lingerMs <= 0 || now - e.releasedAt < root.lingerMs) kept.push(e)
       }
       root.entries = root.trimEntries(kept)
-      root.opened = root.entries.length > 0
+      root.updateOpened()
       // The linger window passed and the display cleared: the run is over,
       // so the score resets with it (the banner hides again).
       if (root.entries.length === 0 && root.comboScore !== 0) {
@@ -702,6 +715,119 @@ Item {
     onFileChanged: reload()
   }
 
+  // ------------------------------------------------------- cursor ring
+
+  // Written by the Lua capture while a mouse button is held:
+  // { buttons: ["L", ...], x, y } in global compositor coordinates.
+  readonly property string mousePath: {
+    var runtime = Quickshell.env("XDG_RUNTIME_DIR")
+    if (!runtime || runtime.length === 0) return ""
+    if (runtime === "/tmp") return ""
+    return runtime + "/omarchy-key-visualizer-mouse.json"
+  }
+  property var ringButtons: []
+  // Last non-empty set of held buttons: what the ring draws, so it keeps
+  // its colors while fading out after release.
+  property var ringShown: []
+  property real ringX: 0
+  property real ringY: 0
+  readonly property int ringSize: Style.space(44)
+  readonly property int ringStroke: Math.max(3, Style.space(4))
+
+  // Mouse box: a small box of its own, on screen the whole time the
+  // visualizer is on, pinned at the position preset's anchor (plus the drag
+  // offset) so it never moves while typing. The key card sits beside it.
+  // The held buttons light up; a quick click stays lit for mouseFlashMs.
+  property var mouseHeld: []
+  property var mouseLit: []
+  readonly property bool mouseBoxOn: root.showMouse && !root.paused
+  readonly property int mouseFlashMs: 300
+
+  function updateOpened() {
+    root.opened = root.entries.length > 0
+  }
+
+  // Top-left corner of the mouse box, in panel coordinates.
+  function mouseBoxX() {
+    var w = mouseBox.width
+    var p = root.position
+    var base = 0
+    if (p.indexOf("left") !== -1) base = root.margin
+    else if (p.indexOf("right") !== -1) base = panel.width - w - root.margin
+    else base = Math.round((panel.width - w) / 2)
+    return root.clamp(base + root.offsetX, 0, panel.width - w)
+  }
+
+  function mouseBoxY() {
+    return root.clamp(root.offsetY - mouseBox.borderTop - root.cardPad, 0, panel.height - mouseBox.height)
+  }
+
+  // X for a box of width w placed beside the mouse box on the inward side:
+  // left of it for right-anchored presets, right of it otherwise. Used by
+  // the key card and the on/off notice.
+  function besideMouseBoxX(w) {
+    if (root.position.indexOf("right") !== -1) return root.mouseBoxX() - root.chipGap - w
+    return root.mouseBoxX() + mouseBox.width + root.chipGap
+  }
+
+  // On/off notice, shown briefly in its own box when the display is paused
+  // or resumed, never in the key history.
+  property string statusText: ""
+
+  Timer {
+    id: statusTimer
+    interval: 1500
+    onTriggered: root.statusText = ""
+  }
+
+  Timer {
+    id: mouseFlashTimer
+    interval: root.mouseFlashMs
+    onTriggered: if (root.mouseHeld.length === 0) root.mouseLit = []
+  }
+
+  function applyMouse(raw) {
+    var buttons = []
+    var parsed = null
+    try { parsed = JSON.parse(raw || "{}") } catch (e) {}
+    if (parsed && Array.isArray(parsed.buttons) && !root.paused) buttons = parsed.buttons
+    var prevHeld = root.mouseHeld
+    root.mouseHeld = buttons
+    if (buttons.length > 0) {
+      mouseFlashTimer.stop()
+      root.mouseLit = buttons
+    } else if (prevHeld.length > 0) {
+      mouseFlashTimer.restart()
+    }
+    if (!root.cursorRing) buttons = []
+    if (buttons.length > 0 && isFinite(parsed.x) && isFinite(parsed.y)) {
+      root.ringX = parsed.x
+      root.ringY = parsed.y
+    }
+    var wasHeld = root.ringButtons.length > 0
+    root.ringButtons = buttons
+    if (buttons.length > 0) {
+      if (JSON.stringify(buttons) !== JSON.stringify(root.ringShown)) root.ringShown = buttons
+      ringFade.stop()
+      cursorRingItem.opacity = 1
+    } else if (wasHeld) {
+      // Released: the ring stays where the button went up and fades out,
+      // keeping the colors of the last held set.
+      ringFade.restart()
+    }
+  }
+
+  FileView {
+    id: mouseFile
+    path: root.mousePath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.applyMouse(text())
+    onFileChanged: reload()
+  }
+
+  onRingShownChanged: ringCanvas.requestPaint()
+
   onPausedChanged: if (root.paused) {
     root.entries = []
     root.opened = false
@@ -712,16 +838,16 @@ Item {
   property bool pauseStateKnown: false
 
   // Applies the pause flag and, on a real change, shows a transient
-  // "Key visualizer on/off" chip in the card itself — same place as the
-  // keys, and on every monitor, since each instance watches the flag.
+  // "Key visualizer on/off" notice in its own box beside the mouse box —
+  // on every monitor, since each instance watches the flag.
   function pauseLoaded(p) {
     var changed = root.pauseStateKnown && p !== root.paused
     root.paused = p
     root.pauseStateKnown = true
     if (!changed) return
     root.lastAppliedNextRaw = ""
-    root.entries = [{ keys: ["Key visualizer " + (p ? "off" : "on")], releasedAt: Date.now() }]
-    root.opened = true
+    root.statusText = "Key visualizer " + (p ? "off" : "on")
+    statusTimer.restart()
   }
 
   function setPaused(p) {
@@ -756,6 +882,8 @@ Item {
     if (isFinite(cfg.lingerMs) && cfg.lingerMs >= 0) root.lingerMs = Math.round(cfg.lingerMs)
     if (isFinite(cfg.historyCount)) root.historyCount = Math.max(1, Math.min(5, Math.round(cfg.historyCount)))
     root.comboMode = cfg.comboMode === true
+    root.showMouse = cfg.showMouse !== false
+    root.cursorRing = cfg.cursorRing !== false
     if (isFinite(cfg.offsetX)) root.offsetX = Math.round(root.clamp(cfg.offsetX, -2000, 2000))
     if (isFinite(cfg.offsetY)) {
       var oy = Math.round(root.clamp(cfg.offsetY, -2000, 2000))
@@ -784,6 +912,8 @@ Item {
       lingerMs: root.lingerMs,
       historyCount: root.historyCount,
       comboMode: root.comboMode,
+      showMouse: root.showMouse,
+      cursorRing: root.cursorRing,
       offsetX: root.offsetX,
       offsetY: root.offsetY
     }
@@ -838,7 +968,7 @@ Item {
   function migrateConfig() {
     // First load with the new location: carry over values from the old
     // plugin-dir config (if any) and remove it, or seed the defaults.
-    var defaults = '{"mode": "all", "position": "bottom-center", "margin": 67, "lingerMs": 1000, "historyCount": 1, "comboMode": false, "offsetX": 0, "offsetY": 0}'
+    var defaults = '{"mode": "all", "position": "bottom-center", "margin": 67, "lingerMs": 1000, "historyCount": 1, "comboMode": false, "showMouse": true, "cursorRing": true, "offsetX": 0, "offsetY": 0}'
     migrateProc.command = ["sh", "-c",
       "if [ -f " + Util.shellQuote(root.legacyConfigPath) + " ]; then "
       + "cp " + Util.shellQuote(root.legacyConfigPath) + " " + Util.shellQuote(root.configPath) + "; "
@@ -951,7 +1081,9 @@ Item {
 
   PanelWindow {
     id: panel
-    visible: root.opened
+    // Also mapped for the always-on mouse box, the on/off notice, and the
+    // cursor ring while it fades.
+    visible: root.opened || root.mouseBoxOn || root.statusText !== "" || cursorRingItem.opacity > 0
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "key-visualizer"
@@ -994,6 +1126,8 @@ Item {
         var gW = root.groupWidth()
         var lo = -root.groupLeftOffset()
         var hi = panel.width - root.groupRightOffset()
+        // Beside the pinned mouse box when it is on, so the box never moves.
+        if (root.mouseBoxOn) return root.clamp(root.besideMouseBoxX(card.width), 0, panel.width - card.width) + root.shakeX
         var base = 0
         if (p.indexOf("left") !== -1) base = root.margin
         else if (p.indexOf("right") !== -1) base = panel.width - gW - root.margin
@@ -1052,7 +1186,7 @@ Item {
                 Text {
                   visible: modelData.kind === "text"
                   anchors.centerIn: parent
-                  text: modelData.text
+                  text: modelData.kind === "text" ? modelData.text : ""
                   font: root.chipFont
                   color: Color.popups.text
                 }
@@ -1083,6 +1217,136 @@ Item {
             }
           }
         }
+      }
+    }
+
+    // Mouse box: always on screen while the visualizer is on, pinned at the
+    // preset's anchor (see mouseBoxX), level with the card's newest row. It
+    // never scrolls with the key history. The mouse's segments light up in
+    // the held buttons' colors.
+    BorderSurface {
+      id: mouseBox
+      visible: root.mouseBoxOn
+      width: borderLeft + root.cardPad + root.mouseIconWidth + 2 * root.chipPadX + root.cardPad + borderRight
+      height: borderTop + root.cardPad + root.chipHeight + root.cardPad + borderBottom
+      x: root.mouseBoxX()
+      y: root.mouseBoxY()
+      color: Util.alpha(Color.popups.background, 0.97)
+      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+      radius: Style.cornerRadius
+
+      Canvas {
+        id: mouseIcon
+        anchors.centerIn: parent
+        width: root.mouseIconWidth
+        height: root.mouseIconHeight
+        property var lit: root.mouseLit
+        property color lineColor: Color.popups.text
+        onLitChanged: requestPaint()
+        onLineColorChanged: requestPaint()
+        onPaint: {
+          var ctx = getContext("2d")
+          var w = width, h = height
+          var r = w / 2
+          var split = h * 0.45
+          var mid0 = w * 0.38, mid1 = w * 0.62
+          var segs = { "L": [0, mid0], "M": [mid0, mid1], "R": [mid1, w] }
+          ctx.reset()
+          ctx.lineWidth = 1.5
+          function body() {
+            ctx.beginPath()
+            ctx.roundedRect(0.75, 0.75, w - 1.5, h - 1.5, r - 0.75, r - 0.75)
+          }
+          ctx.save()
+          body()
+          ctx.clip()
+          for (var i = 0; i < lit.length; i++) {
+            var seg = segs[lit[i]]
+            if (!seg) continue
+            ctx.fillStyle = root.buttonColors[lit[i]]
+            ctx.fillRect(seg[0], 0, seg[1] - seg[0], split)
+          }
+          ctx.restore()
+          ctx.strokeStyle = lineColor
+          body()
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(0, split); ctx.lineTo(w, split)
+          ctx.moveTo(mid0, 0); ctx.lineTo(mid0, split)
+          ctx.moveTo(mid1, 0); ctx.lineTo(mid1, split)
+          ctx.stroke()
+        }
+      }
+    }
+
+    // On/off notice: its own box, beside the mouse box (or at the anchor
+    // when the mouse box is off), shown for a moment after a pause toggle.
+    BorderSurface {
+      id: statusBox
+      visible: root.statusText !== ""
+      // Above the card: a key pressed right after resuming must not hide it.
+      z: 5
+      width: borderLeft + root.cardPad + Math.ceil(chipFontMetrics.advanceWidth(root.statusText)) + 2 * root.chipPadX + root.cardPad + borderRight
+      height: mouseBox.height
+      x: root.showMouse
+        ? root.clamp(root.besideMouseBoxX(width), 0, panel.width - width)
+        : root.clamp(root.mouseBoxX() + (root.position.indexOf("right") !== -1 ? mouseBox.width - width : 0), 0, panel.width - width)
+      y: root.mouseBoxY()
+      color: Util.alpha(Color.popups.background, 0.97)
+      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+      radius: Style.cornerRadius
+
+      Text {
+        anchors.centerIn: parent
+        text: root.statusText
+        font: root.chipFont
+        color: Color.popups.text
+      }
+    }
+
+    // Cursor ring: follows the pointer while any mouse button is held,
+    // colored by the held button(s) — one arc per button when several are
+    // down — and fades out where the button was released. The overlay's
+    // input mask stays empty, so the ring never intercepts the click.
+    Item {
+      id: cursorRingItem
+      width: root.ringSize
+      height: root.ringSize
+      x: root.ringX - (panel.screen ? panel.screen.x : 0) - width / 2
+      y: root.ringY - (panel.screen ? panel.screen.y : 0) - height / 2
+      opacity: 0
+      visible: opacity > 0
+      z: 20
+
+      Canvas {
+        id: ringCanvas
+        anchors.fill: parent
+        onPaint: {
+          var ctx = getContext("2d")
+          var b = root.ringShown
+          ctx.reset()
+          if (b.length === 0) return
+          var c = width / 2
+          var rad = c - root.ringStroke / 2 - 1
+          ctx.lineWidth = root.ringStroke
+          ctx.lineCap = "butt"
+          var step = 2 * Math.PI / b.length
+          for (var i = 0; i < b.length; i++) {
+            var start = -Math.PI / 2 + i * step
+            ctx.beginPath()
+            ctx.arc(c, c, rad, start, start + step)
+            ctx.strokeStyle = root.buttonColors[b[i]] || Color.accent
+            ctx.stroke()
+          }
+        }
+      }
+
+      NumberAnimation on opacity {
+        id: ringFade
+        running: false
+        to: 0
+        duration: 250
+        easing.type: Easing.OutQuad
       }
     }
 
