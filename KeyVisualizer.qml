@@ -38,9 +38,10 @@ Item {
   // second, content-identical file-changed event; without this guard that
   // redundant re-apply() re-derives the same "next" from a since-mutated
   // top entry (e.g. after a merge) and no longer recognizes it as the same
-  // combo, corrupting the history. Any repeat of the same payload is a
-  // pure echo and is skipped outright.
-  property string lastAppliedNextRaw: ""
+  // Applies the same data and removes the need for the echo guard.
+  // Debounce window for chmod-triggered duplicates (50ms).
+  property string lastAppliedJson: ""
+  property real lastAppliedJsonT: 0
   // How many combos stay on screen (1..5, default 1). Older entries fade
   // out via the entryOpacity() gradient; a count of 1 is the classic
   // current-combo-only display.
@@ -347,8 +348,12 @@ Item {
     }
 
     var nextRaw = JSON.stringify(next)
-    if (nextRaw === root.lastAppliedNextRaw) return
-    root.lastAppliedNextRaw = nextRaw
+    // Dedup chmod bounces: same payload within 50ms is a chmod echo.
+    // Real autorepeat (plain keys) comes at ~50-100ms intervals, so
+    // allow same payload through after the debounce window expires.
+    if (nextRaw === root.lastAppliedJson && Date.now() - root.lastAppliedJsonT < 50) return
+    root.lastAppliedJson = nextRaw
+    root.lastAppliedJsonT = Date.now()
 
     var isChord = root.modCountOf(next) > 0
     var es = root.entries.slice()
@@ -371,8 +376,14 @@ Item {
       var lastSeg = es[0].segments[es[0].segments.length - 1]
       if (lastSeg && lastSeg.kind === (isChord ? "chord" : "plain")
           && root.segKeysEqual(lastSeg.keys, next)) {
-        // Same keys again (autorepeat / duplicate write): refresh, no
-        // duplicate segment.
+        if (!isChord) {
+          // Autorepeat for plain keys: append the character again.
+          var mergedKeys = lastSeg.keys.concat(next)
+          if (mergedKeys.length > root.typingGroupMaxKeys)
+            mergedKeys = mergedKeys.slice(mergedKeys.length - root.typingGroupMaxKeys)
+          es[0].segments[es[0].segments.length - 1] = { kind: "plain", keys: mergedKeys }
+        }
+        // For chords: just refresh, no duplicate on autorepeat.
         es[0] = { segments: es[0].segments, releasedAt: 0 }
       } else if (lastSeg && lastSeg.kind === (isChord ? "chord" : "plain") && root.isSupersetOf(lastSeg.keys, next)) {
         // Building a chord key-by-key: update the last segment in place.
@@ -649,7 +660,7 @@ Item {
     root.paused = p
     root.pauseStateKnown = true
     if (!changed) return
-    root.lastAppliedNextRaw = ""
+    root.lastAppliedJson = ""
     root.statusText = "Key visualizer " + (p ? "off" : "on")
     statusTimer.restart()
   }
