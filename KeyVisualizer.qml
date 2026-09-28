@@ -385,6 +385,12 @@ Item {
         // last segment in place instead of appending a duplicate.
         es[0].segments[es[0].segments.length - 1] = { kind: lastSeg.kind, keys: next.slice() }
         es[0] = { segments: es[0].segments, releasedAt: 0 }
+      } else if (lastSeg && root.modCountOf(lastSeg.keys) >= lastSeg.keys.length) {
+        // Prior segment was pure modifiers (e.g. ["Shift"] or ["Ctrl"]
+        // pressed alone). The Lua already folded the modifier into the
+        // next payload, so replace the segment in place.
+        es[0].segments[es[0].segments.length - 1] = { kind: isChord ? "chord" : "plain", keys: next.slice() }
+        es[0] = { segments: es[0].segments, releasedAt: 0 }
       } else {
         // New keys while still holding: merge into the last plain segment
         // if still plain, otherwise append as a new segment.
@@ -413,7 +419,7 @@ Item {
       if (es.length > 0 && es[0].releasedAt !== 0 &&
           (root.lingerMs <= 0 || Date.now() - es[0].releasedAt < root.lingerMs * 2 / 3)) {
         // Released recently: merge into the last plain segment if still
-        // plain, otherwise append as a new segment.
+        // plain, or replace if the last segment was pure modifiers.
         var appended = es[0].segments.slice()
         var lastSeg = appended[appended.length - 1]
         if (!isChord && lastSeg && lastSeg.kind === "plain") {
@@ -421,7 +427,9 @@ Item {
           if (mergedKeys.length > root.typingGroupMaxKeys)
             mergedKeys = mergedKeys.slice(mergedKeys.length - root.typingGroupMaxKeys)
           appended[appended.length - 1] = { kind: "plain", keys: mergedKeys }
-        } else {
+        } else if (lastSeg && root.modCountOf(lastSeg.keys) >= lastSeg.keys.length) {
+          // Prior segment was pure modifiers: replace with the new keys.
+          appended[appended.length - 1] = { kind: isChord ? "chord" : "plain", keys: next.slice() }
           appended.push({ kind: isChord ? "chord" : "plain", keys: next.slice() })
           // Cap total keys to typingGroupMaxKeys (drop oldest segments).
           var total = 0

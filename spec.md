@@ -222,5 +222,11 @@ toggle (always inline, chords always in accent color).
 6. **Chord teardown**: Releasing a key from a chord (Ctrl+A → Ctrl while
    Ctrl still held) updates the segment in place.
 
-7. **Consecutive plain typing**: Each key press merges into the last plain
+7. **Pure-modifier replacement**: When a modifier-only segment (e.g.
+   `["Shift"]` or `["Ctrl"]` pressed alone) is followed by a new payload,
+   the segment is replaced in place rather than appended. This handles
+   Shift+A → the Lua sends `["A"]` (uppercase, Shift already folded into
+   the letter), and the bare `["Shift"]` segment is dropped.
+
+8. **Consecutive plain typing**: Each key press merges into the last plain
    segment if within the linger window — no per-key segment fragmentation.
