@@ -29,7 +29,6 @@ Panel {
   property int margin: 67
   property int lingerMs: 1000
   property int historyCount: 1
-  property bool comboMode: false
   property bool showMouse: true
   property bool cursorRing: true
   // Manual fine-tune offsets (px) written by the D-pad; reset when a preset
@@ -92,7 +91,6 @@ Panel {
     if (isFinite(cfg.margin) && cfg.margin >= 0) root.margin = Math.round(cfg.margin)
     if (isFinite(cfg.lingerMs) && cfg.lingerMs >= 0) root.lingerMs = Math.round(cfg.lingerMs)
     if (isFinite(cfg.historyCount)) root.historyCount = Math.max(1, Math.min(5, Math.round(cfg.historyCount)))
-    root.comboMode = cfg.comboMode === true
     root.showMouse = cfg.showMouse !== false
     root.cursorRing = cfg.cursorRing !== false
     if (isFinite(cfg.offsetX)) root.offsetX = Math.round(cfg.offsetX)
@@ -108,7 +106,6 @@ Panel {
       margin: root.margin,
       lingerMs: root.lingerMs,
       historyCount: root.historyCount,
-      comboMode: root.comboMode,
       showMouse: root.showMouse,
       cursorRing: root.cursorRing,
       offsetX: root.offsetX,
@@ -118,7 +115,6 @@ Panel {
     if (update.mode !== undefined) root.mode = update.mode
     if (update.position !== undefined) root.position = update.position
     if (update.historyCount !== undefined) root.historyCount = update.historyCount
-    if (update.comboMode !== undefined) root.comboMode = update.comboMode
     if (update.showMouse !== undefined) root.showMouse = update.showMouse
     if (update.cursorRing !== undefined) root.cursorRing = update.cursorRing
     if (update.offsetX !== undefined) root.offsetX = update.offsetX
@@ -269,34 +265,6 @@ Panel {
           // toggled() and the caller owns the value. Flip the real state;
           // the checked binding follows.
           onToggled: root.setPaused(!root.paused)
-        }
-      }
-
-      // Combo mode -----------------------------------------------------
-      // Game mode: combo counter + score with escalating effects (pulse,
-      // hue, screen shake). Chords with modifiers build the combo; plain
-      // characters are hits that only add score.
-      Item {
-        width: parent.width
-        height: comboSwitch.implicitHeight
-
-        Text {
-          anchors.left: parent.left
-          anchors.verticalCenter: parent.verticalCenter
-          text: "Combo mode"
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body
-          color: Color.popups.text
-        }
-
-        ToggleSwitch {
-          id: comboSwitch
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          checked: root.comboMode
-          foreground: Color.popups.text
-          accent: Color.accent
-          onToggled: root.writeConfig({ comboMode: !root.comboMode })
         }
       }
 

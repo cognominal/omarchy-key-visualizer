@@ -8,8 +8,6 @@ and screencasts.
 
 ![Typed text fused into one chip, with repeated Backspace counted](kv-popup.png)
 
-![Combo mode in action](combo-mode.gif)
-
 ## Install
 
 ```bash
@@ -39,8 +37,6 @@ The keyboard glyph (right section by default) opens a small menu:
 - **Linger** — how long a released combo stays, 0–10s; `0` keeps it until
   the next key.
 - **History** — how many combos stack on screen (1–5); older ones fade.
-- **Combo mode** — turns the display into a game counter with score and
-  effects (see below).
 - **Show mouse buttons** — an always-on mouse box that lights up the
   clicked button.
 - **Cursor ring** — draw a colored ring around the cursor while a mouse
@@ -72,12 +68,6 @@ omarchy-shell key-visualizer resume
   a Linger of `0` keeps it until the next key.
 - **History** — the last few combos stack instead of vanishing, with older
   ones fading out. Top positions stack downward, bottom positions upward.
-- **Combo mode** — a game counter. Combos with modifiers score points and
-  build a streak (multiplier up to ×8); plain typing scores a little too.
-  The banner shows `COMBO 12 ×3 · 3,450`. The longer the streak, the bigger
-  the effects: pulsing, color shifts, screen shake — and at high streaks a
-  constant vibration. Stop for a moment and the streak resets; when the
-  display fades away, the score resets too.
 - **Bindings only** — shows only combos with a modifier; plain typing stays
   off screen.
 - **Mouse box** — a small box with a mouse in it stays on screen whenever
@@ -105,7 +95,6 @@ Options live in `~/.config/omarchy/key-visualizer.json` and apply live:
   "margin": 67,
   "lingerMs": 1000,
   "historyCount": 1,
-  "comboMode": false,
   "showMouse": true,
   "cursorRing": true
 }
@@ -118,7 +107,6 @@ Options live in `~/.config/omarchy/key-visualizer.json` and apply live:
 | `margin`       | distance from the screen edge (px)                | `67`            |
 | `lingerMs`     | how long a released combo stays; `0` = keep until the next key | `1000` |
 | `historyCount` | combos stacked on screen (1–5)                    | `1`             |
-| `comboMode`    | game counter, score and effects                   | `false`         |
 | `showMouse`    | always-on mouse box lighting the clicked button   | `true`          |
 | `cursorRing`   | ring around the cursor while a button is held     | `true`          |
 
