@@ -378,6 +378,13 @@ Item {
         // Building a chord key-by-key: update the segment in place.
         es[0].segments[0] = { kind: isChord ? "chord" : "plain", keys: next.slice() }
         es[0] = { segments: es[0].segments, releasedAt: 0 }
+      } else if (lastSeg && lastSeg.kind === (isChord ? "chord" : "plain")
+                 && next.length < lastSeg.keys.length
+                 && next.every(function(k) { return lastSeg.keys.indexOf(k) !== -1 })) {
+        // Chord teardown: a modifier/released key went up. Update the
+        // last segment in place instead of appending a duplicate.
+        es[0].segments[es[0].segments.length - 1] = { kind: lastSeg.kind, keys: next.slice() }
+        es[0] = { segments: es[0].segments, releasedAt: 0 }
       } else {
         // New keys while still holding: merge into the last plain segment
         // if still plain, otherwise append as a new segment.
