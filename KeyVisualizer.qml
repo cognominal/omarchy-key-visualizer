@@ -79,8 +79,9 @@ Item {
 
   // Options read from config.json in the plugin folder (created with
   // defaults on first run, hot-reloaded on save):
-  //   mode     "all" | "bindings" — bindings only shows combos with a
-  //            modifier, ignoring plain typing (tutorial mode).
+  //   mode     "all" | "bindings" — everything shows all keys;
+  //            bindings only shows combos with a modifier, ignoring plain
+  //            typing (tutorial mode).
   //   position one of the six corners/edges: top/bottom + left/center/right.
   //            Middle positions were dropped — the stack anchors to the top
   //            (grows down) or the bottom (grows up) edge.

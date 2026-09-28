@@ -351,7 +351,7 @@ Panel {
         }
       }
 
-      // Mode ----------------------------------------------------------
+      // Display mode --------------------------------------------------
       Item {
         width: parent.width
         height: modeButtons.height
@@ -360,7 +360,7 @@ Panel {
           id: filterLabel
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
-          text: "Filter"
+          text: "Display mode"
           font.family: Style.font.family
           font.pixelSize: Style.font.body
           color: Color.popups.text
@@ -373,14 +373,14 @@ Panel {
           spacing: Style.spacing.xs
 
           Button {
-            text: "All keys"
+            text: "Everything"
             selected: root.mode !== "bindings"
             foreground: Color.popups.text
             accent: Color.accent
             onClicked: root.writeConfig({ mode: "all" })
           }
           Button {
-            text: "Bindings"
+            text: "Chords only"
             selected: root.mode === "bindings"
             foreground: Color.popups.text
             accent: Color.accent
