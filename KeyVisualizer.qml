@@ -96,6 +96,9 @@ Item {
   //              (default true).
   property bool showMouse: true
   property bool cursorRing: true
+  //   inlineKeys render named-key glyphs inline in the text string instead
+  //              of as separate chips; chorded entries use a different color.
+  property bool inlineKeys: false
   readonly property var modLabels: ["Super", "Ctrl", "Alt", "Alt R", "Shift", "Menu", "AltGr"]
 
   // Options live at ~/.config/omarchy/key-visualizer.json rather than inside the
@@ -184,8 +187,14 @@ Item {
   })
 
   function chipGroups(keys) {
-    if (root.modCountOf(keys) === 0) {
+    var isChord = root.modCountOf(keys) > 0
+    if (!isChord) {
       keys = keys.map(function (k) { return root.textSymbols[k] || k })
+    }
+    if (root.inlineKeys && !isChord) {
+      // Inline mode: fold everything into a single text string, named-key
+      // glyphs included. No per-chip grouping; it renders as one chip.
+      return [{ kind: "text", text: keys.join("") }]
     }
     var groups = []
     var i = 0
@@ -642,6 +651,7 @@ Item {
     if (isFinite(cfg.historyCount)) root.historyCount = Math.max(1, Math.min(5, Math.round(cfg.historyCount)))
     root.showMouse = cfg.showMouse !== false
     root.cursorRing = cfg.cursorRing !== false
+    root.inlineKeys = cfg.inlineKeys === true
     if (isFinite(cfg.offsetX)) root.offsetX = Math.round(root.clamp(cfg.offsetX, -2000, 2000))
     if (isFinite(cfg.offsetY)) {
       var oy = Math.round(root.clamp(cfg.offsetY, -2000, 2000))
@@ -671,6 +681,7 @@ Item {
       historyCount: root.historyCount,
       showMouse: root.showMouse,
       cursorRing: root.cursorRing,
+      inlineKeys: root.inlineKeys,
       offsetX: root.offsetX,
       offsetY: root.offsetY
     }
@@ -725,7 +736,7 @@ Item {
   function migrateConfig() {
     // First load with the new location: carry over values from the old
     // plugin-dir config (if any) and remove it, or seed the defaults.
-    var defaults = '{"mode": "all", "position": "bottom-center", "margin": 67, "lingerMs": 1000, "historyCount": 1, "showMouse": true, "cursorRing": true, "offsetX": 0, "offsetY": 0}'
+    var defaults = '{"mode": "all", "position": "bottom-center", "margin": 67, "lingerMs": 1000, "historyCount": 1, "showMouse": true, "cursorRing": true, "inlineKeys": false, "offsetX": 0, "offsetY": 0}'
     migrateProc.command = ["sh", "-c",
       "if [ -f " + Util.shellQuote(root.legacyConfigPath) + " ]; then "
       + "cp " + Util.shellQuote(root.legacyConfigPath) + " " + Util.shellQuote(root.configPath) + "; "
@@ -914,22 +925,28 @@ Item {
 
           delegate: Row {
             required property var modelData
+            readonly property var entryKeys: modelData.entry.keys
+            readonly property bool isChordEntry: root.modCountOf(entryKeys) > 0
             spacing: root.chipGap
             opacity: root.entryOpacity(modelData.pos)
 
             Repeater {
-              model: root.chipGroups(modelData.entry.keys)
+              model: root.chipGroups(entryKeys)
 
               delegate: Rectangle {
                 required property var modelData
                 width: root.chipGroupWidth(modelData)
                 height: root.chipHeight
                 radius: Math.max(3, Style.cornerRadius - 1)
-                // Named keys (Space, Backspace, Esc, ...) get a lighter fill
-                // than plain typed-text chips, so they read as distinct
-                // "special key" chrome rather than more typed characters.
-                color: Util.alpha(Color.popups.text, modelData.kind === "named" ? 0.18 : 0.10)
-                border.color: Util.alpha(Color.popups.text, 0.35)
+                // Chorded entries (with modifiers) render in the accent color;
+                // plain entries use the normal text color. Named chips within
+                // plain entries get a slightly lighter fill than text chips.
+                color: isChordEntry
+                  ? Util.alpha(Color.accent, 0.20)
+                  : Util.alpha(Color.popups.text, modelData.kind === "named" ? 0.18 : 0.10)
+                border.color: isChordEntry
+                  ? Util.alpha(Color.accent, 0.45)
+                  : Util.alpha(Color.popups.text, 0.35)
                 border.width: 1
 
                 // A run of consecutive plain characters (typing, or an
@@ -940,7 +957,7 @@ Item {
                   anchors.centerIn: parent
                   text: modelData.kind === "text" ? modelData.text : ""
                   font: root.chipFont
-                  color: Color.popups.text
+                  color: isChordEntry ? Color.accent : Color.popups.text
                 }
 
                 // A named key (Esc, Tab, F1, Backspace, ...) keeps its own
@@ -955,14 +972,14 @@ Item {
                   Text {
                     text: modelData.kind === "named" ? modelData.label : ""
                     font: root.chipFont
-                    color: Color.popups.text
+                    color: isChordEntry ? Color.accent : Color.popups.text
                   }
 
                   Text {
                     visible: modelData.kind === "named" && modelData.count > 1
                     text: modelData.kind === "named" ? ("×" + modelData.count) : ""
                     font: root.chipFont
-                    color: Color.urgent
+                    color: isChordEntry ? Color.accent : Color.urgent
                   }
                 }
               }
