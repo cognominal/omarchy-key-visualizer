@@ -378,16 +378,25 @@ Item {
         es[0].segments[0] = { kind: isChord ? "chord" : "plain", keys: next.slice() }
         es[0] = { segments: es[0].segments, releasedAt: 0 }
       } else {
-        // New keys while still holding: append as a new segment.
+        // New keys while still holding: merge into the last plain segment
+        // if still plain, otherwise append as a new segment.
         var appended = es[0].segments.slice()
-        appended.push({ kind: isChord ? "chord" : "plain", keys: next.slice() })
-        // Cap total keys to typingGroupMaxKeys (drop oldest segments first).
-        var total = 0
-        for (var si2 = 0; si2 < appended.length; si2++)
-          total += appended[si2].keys.length
-        while (total > root.typingGroupMaxKeys && appended.length > 1) {
-          total -= appended[0].keys.length
-          appended.shift()
+        var lastSeg = appended[appended.length - 1]
+        if (!isChord && lastSeg && lastSeg.kind === "plain") {
+          var mergedKeys = lastSeg.keys.concat(next)
+          if (mergedKeys.length > root.typingGroupMaxKeys)
+            mergedKeys = mergedKeys.slice(mergedKeys.length - root.typingGroupMaxKeys)
+          appended[appended.length - 1] = { kind: "plain", keys: mergedKeys }
+        } else {
+          appended.push({ kind: isChord ? "chord" : "plain", keys: next.slice() })
+          // Cap total keys to typingGroupMaxKeys (drop oldest segments first).
+          var total = 0
+          for (var si2 = 0; si2 < appended.length; si2++)
+            total += appended[si2].keys.length
+          while (total > root.typingGroupMaxKeys && appended.length > 1) {
+            total -= appended[0].keys.length
+            appended.shift()
+          }
         }
         es[0] = { segments: appended, releasedAt: 0 }
       }
@@ -395,16 +404,25 @@ Item {
       // Previous entry was released (or none exists).
       if (es.length > 0 && es[0].releasedAt !== 0 &&
           (root.lingerMs <= 0 || Date.now() - es[0].releasedAt < root.lingerMs * 2 / 3)) {
-        // Released recently: append as a new segment to the current entry.
+        // Released recently: merge into the last plain segment if still
+        // plain, otherwise append as a new segment.
         var appended = es[0].segments.slice()
-        appended.push({ kind: isChord ? "chord" : "plain", keys: next.slice() })
-        // Cap total keys to typingGroupMaxKeys (drop oldest segments).
-        var total = 0
-        for (var si2 = 0; si2 < appended.length; si2++)
-          total += appended[si2].keys.length
-        while (total > root.typingGroupMaxKeys && appended.length > 1) {
-          total -= appended[0].keys.length
-          appended.shift()
+        var lastSeg = appended[appended.length - 1]
+        if (!isChord && lastSeg && lastSeg.kind === "plain") {
+          var mergedKeys = lastSeg.keys.concat(next)
+          if (mergedKeys.length > root.typingGroupMaxKeys)
+            mergedKeys = mergedKeys.slice(mergedKeys.length - root.typingGroupMaxKeys)
+          appended[appended.length - 1] = { kind: "plain", keys: mergedKeys }
+        } else {
+          appended.push({ kind: isChord ? "chord" : "plain", keys: next.slice() })
+          // Cap total keys to typingGroupMaxKeys (drop oldest segments).
+          var total = 0
+          for (var si2 = 0; si2 < appended.length; si2++)
+            total += appended[si2].keys.length
+          while (total > root.typingGroupMaxKeys && appended.length > 1) {
+            total -= appended[0].keys.length
+            appended.shift()
+          }
         }
         es[0] = { segments: appended, releasedAt: 0 }
       } else {
