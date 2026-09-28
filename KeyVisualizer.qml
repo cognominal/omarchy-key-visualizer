@@ -93,9 +93,6 @@ Item {
   //              (default true).
   property bool showMouse: true
   property bool cursorRing: true
-  //   inlineKeys when on, plain typing fuses into a single text chip
-  //              instead of separate per-key chips.
-  property bool inlineKeys: false
   readonly property var modLabels: ["Super", "Ctrl", "Alt", "Alt R", "Shift", "Menu", "AltGr"]
 
   // Options live at ~/.config/omarchy/key-visualizer.json rather than inside the
@@ -189,42 +186,19 @@ Item {
     "Right": "\u2192",     // →  RIGHTWARDS ARROW
   })
 
-  function chipGroups(keys) {
-    var isChord = root.modCountOf(keys) > 0
-    // Apply textSymbols to all keys regardless of chord status so arrows
-    // and action-key glyphs always show (↑ ↓ ← →, ␣, ⇥, ↵, ⌫, …). In
-    // chords they become readable shorthand: "Ctrl ↑" vs "Ctrl Up".
-    keys = keys.map(function (k) { return root.textSymbols[k] || k })
-    // Chords always render as a single inline string with accent color;
-    // plain typing can fuse via inlineKeys or stay as separate chips.
-    if (isChord) {
-      return [{ kind: "text", text: keys.join(" ") }]
-    }
-    if (root.inlineKeys) {
-      // Inline mode for plain typing: fuse without separators.
-      return [{ kind: "text", text: keys.join("") }]
-    }
+  function chipGroups(segments) {
     var groups = []
-    var i = 0
-    while (i < keys.length) {
-      var label = keys[i]
-      if (label.length === 1) {
-        var text = ""
-        while (i < keys.length && keys[i].length === 1) { text += keys[i]; i++ }
-        groups.push({ kind: "text", text: text })
-      } else {
-        var count = 1
-        i++
-        while (i < keys.length && keys[i] === label) { count++; i++ }
-        groups.push({ kind: "named", label: label, count: count })
-      }
+    for (var si = 0; si < segments.length; si++) {
+      var seg = segments[si]
+      var mapped = seg.keys.map(function (k) { return root.textSymbols[k] || k })
+      var joined = seg.kind === "chord" ? mapped.join(" ") : mapped.join("")
+      groups.push({ kind: seg.kind, text: joined })
     }
     return groups
   }
 
   function groupDisplayText(group) {
-    if (group.kind === "text") return group.text
-    return group.count > 1 ? group.label + "×" + group.count : group.label
+    return group.text
   }
 
   // Mouse buttons: each has its own color, used both for the highlighted
@@ -241,8 +215,8 @@ Item {
     return Math.ceil(chipFontMetrics.advanceWidth(root.groupDisplayText(group))) + 2 * chipPadX
   }
 
-  function rowWidth(keys) {
-    var groups = root.chipGroups(keys)
+  function rowWidth(segments) {
+    var groups = root.chipGroups(segments)
     var w = 0
     for (var i = 0; i < groups.length; i++) w += root.chipGroupWidth(groups[i])
     return w + Math.max(0, groups.length - 1) * chipGap
@@ -252,7 +226,7 @@ Item {
   // wider older entry never clips.
   function contentWidth() {
     var w = 0
-    for (var i = 0; i < root.entries.length; i++) w = Math.max(w, rowWidth(root.entries[i].keys))
+    for (var i = 0; i < root.entries.length; i++) w = Math.max(w, rowWidth(root.entries[i].segments))
     return w
   }
 
@@ -299,14 +273,6 @@ Item {
   // 5-deep stack stays readable.
   function entryOpacity(pos) {
     return Math.max(0.25, 1 - pos * 0.22)
-  }
-
-  function sameKeys(a, b) {
-    if (a.length !== b.length) return false
-    var sa = a.slice().sort()
-    var sb = b.slice().sort()
-    for (var i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return false
-    return true
   }
 
   // Strict superset: every key of `base` is in `next` and `next` has more
@@ -359,6 +325,13 @@ Item {
 
   // ------------------------------------------------------------- state
 
+  // Each entry in root.entries is:
+  //   { segments: [{ kind: "plain"|"chord", keys: [label, ...] }],
+  //     releasedAt: 0|ms }
+  // "plain" segments are typed characters fused tight; "chord" segments
+  // are combos with modifiers, joined with spaces and rendered in accent.
+  // Everything appends to the current entry — no separate history rows.
+
   function apply() {
     var next = []
     if (!root.paused) {
@@ -375,57 +348,67 @@ Item {
     var nextRaw = JSON.stringify(next)
     if (nextRaw === root.lastAppliedNextRaw) return
     root.lastAppliedNextRaw = nextRaw
+
+    var isChord = root.modCountOf(next) > 0
     var es = root.entries.slice()
+
     if (next.length === 0) {
-      // All keys released: the newest combo enters its linger window; the
-      // history tick prunes it once lingerMs passes.
+      // All keys released: the current entry enters its linger window.
       if (es.length > 0 && es[0].releasedAt === 0) {
-        var completed = es[0].keys.slice()
-        // A chord made only of modifiers is "mods of nothing": it must not
-        // linger or occupy a history row.
-        // Drop it the moment the keys go up (it still shows live while
-        // held, which is the useful feedback).
-        if (root.modCountOf(completed) >= completed.length) {
+        var allSegKeys = []
+        for (var si = 0; si < es[0].segments.length; si++)
+          allSegKeys = allSegKeys.concat(es[0].segments[si].keys)
+        // A chord made only of modifiers is "mods of nothing": drop it.
+        if (root.modCountOf(allSegKeys) >= allSegKeys.length) {
           es.shift()
         } else {
-          es[0] = { keys: es[0].keys, releasedAt: Date.now() }
+          es[0] = { segments: es[0].segments, releasedAt: Date.now() }
         }
       }
-    } else if (es.length > 0 && es[0].releasedAt === 0 && root.sameKeys(es[0].keys, next)) {
-      // The still-held chord's payload re-fired unchanged (a duplicate
-      // write, since a real state change always alters the key set):
-      // refresh it, no duplicate history entry. Restricted to "still
-      // held" so a genuinely released-then-re-pressed key (autorepeat,
-      // retyping the same letter) falls through to the typing-merge branch
-      // below and grows the box instead of collapsing to one chip.
-      es[0] = { keys: es[0].keys, releasedAt: 0 }
-    } else if (es.length > 0 && es[0].releasedAt === 0 && root.isSupersetOf(es[0].keys, next)) {
-      // The chord is still being held and only grew (Super Ctrl Shift 1
-      // pressed key-by-key): partial states are noise, so update the entry
-      // in place instead of pushing a history row for each partial combo.
-      es[0] = { keys: next.slice(), releasedAt: 0 }
-    } else if (es.length > 0 && es[0].releasedAt !== 0 &&
-               root.modCountOf(es[0].keys) === 0 && root.modCountOf(next) === 0 &&
-               (root.lingerMs <= 0 || Date.now() - es[0].releasedAt < root.lingerMs * 2 / 3)) {
-      // Consecutive plain typing (no modifiers, previous key released less
-      // than 2/3 of the linger time ago): grow the same box into a running
-      // sentence instead of starting a new history row per keystroke. A
-      // chorded combo, or too long a pause between keys, still starts a
-      // fresh box. lingerMs 0 ("never hide") has no natural time cap, so
-      // typing always keeps merging in that mode.
-      var merged = es[0].keys.concat(next)
-      if (merged.length > root.typingGroupMaxKeys) merged = merged.slice(merged.length - root.typingGroupMaxKeys)
-      es[0] = { keys: merged, releasedAt: 0 }
-    } else {
-      // A new combo arrived: the previous combo becomes a history entry
-      // (it keeps lingering) and the new one takes the top of the stack.
-      if (es.length > 0 && es[0].releasedAt === 0) {
-        es[0] = { keys: es[0].keys, releasedAt: Date.now() }
+    } else if (es.length > 0 && es[0].releasedAt === 0) {
+      // Still held. Refresh or append.
+      var lastSeg = es[0].segments[es[0].segments.length - 1]
+      if (lastSeg && lastSeg.kind === (isChord ? "chord" : "plain")
+          && root.segKeysEqual(lastSeg.keys, next)) {
+        // Same keys again (autorepeat / duplicate write): refresh, no
+        // duplicate segment.
+        es[0] = { segments: es[0].segments, releasedAt: 0 }
+      } else if (es[0].segments.length === 1 && root.isSupersetOf(lastSeg.keys, next)) {
+        // Building a chord key-by-key: update the segment in place.
+        es[0].segments[0] = { kind: isChord ? "chord" : "plain", keys: next.slice() }
+        es[0] = { segments: es[0].segments, releasedAt: 0 }
+      } else {
+        // New keys while still holding: append as a new segment.
+        var appended = es[0].segments.slice()
+        appended.push({ kind: isChord ? "chord" : "plain", keys: next.slice() })
+        // Cap total keys to typingGroupMaxKeys (drop oldest segments first).
+        var total = 0
+        for (var si2 = 0; si2 < appended.length; si2++)
+          total += appended[si2].keys.length
+        while (total > root.typingGroupMaxKeys && appended.length > 1) {
+          total -= appended[0].keys.length
+          appended.shift()
+        }
+        es[0] = { segments: appended, releasedAt: 0 }
       }
-      es.unshift({ keys: next, releasedAt: 0 })
+    } else {
+      // Previous entry was released (or none exists). Start fresh.
+      if (es.length > 0 && es[0].releasedAt === 0) {
+        es[0] = { segments: es[0].segments, releasedAt: Date.now() }
+      }
+      es.unshift({ segments: [{ kind: isChord ? "chord" : "plain", keys: next.slice() }], releasedAt: 0 })
     }
     root.entries = root.trimEntries(es)
     root.updateOpened()
+  }
+
+  // Whether two key arrays are equal (order-independent).
+  function segKeysEqual(a, b) {
+    if (a.length !== b.length) return false
+    var sa = a.slice().sort()
+    var sb = b.slice().sort()
+    for (var i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return false
+    return true
   }
 
   // Prunes entries whose linger window passed and caps the stack at
@@ -445,7 +428,7 @@ Item {
       if (root.entries.length > 0 && root.entries[0].releasedAt === 0 &&
           root.lastStateT > 0 &&
           Math.floor(Date.now() / 1000) - root.lastStateT > Math.ceil(root.maxStateAgeMs / 1000)) {
-        root.entries[0] = { keys: root.entries[0].keys, releasedAt: Date.now() }
+        root.entries[0] = { segments: root.entries[0].segments, releasedAt: Date.now() }
       }
       var now = Date.now()
       var kept = []
@@ -652,7 +635,6 @@ Item {
     if (isFinite(cfg.historyCount)) root.historyCount = Math.max(1, Math.min(5, Math.round(cfg.historyCount)))
     root.showMouse = cfg.showMouse !== false
     root.cursorRing = cfg.cursorRing !== false
-    root.inlineKeys = cfg.inlineKeys === true
     if (isFinite(cfg.offsetX)) root.offsetX = Math.round(root.clamp(cfg.offsetX, -2000, 2000))
     if (isFinite(cfg.offsetY)) {
       var oy = Math.round(root.clamp(cfg.offsetY, -2000, 2000))
@@ -681,7 +663,6 @@ Item {
       historyCount: root.historyCount,
       showMouse: root.showMouse,
       cursorRing: root.cursorRing,
-      inlineKeys: root.inlineKeys,
       offsetX: root.offsetX,
       offsetY: root.offsetY
     }
@@ -736,7 +717,7 @@ Item {
   function migrateConfig() {
     // First load with the new location: carry over values from the old
     // plugin-dir config (if any) and remove it, or seed the defaults.
-    var defaults = '{"position": "bottom-center", "margin": 67, "lingerMs": 1000, "historyCount": 1, "showMouse": true, "cursorRing": true, "inlineKeys": false, "offsetX": 0, "offsetY": 0}'
+    var defaults = '{"position": "bottom-center", "margin": 67, "lingerMs": 1000, "historyCount": 1, "showMouse": true, "cursorRing": true, "offsetX": 0, "offsetY": 0}'
     migrateProc.command = ["sh", "-c",
       "if [ -f " + Util.shellQuote(root.legacyConfigPath) + " ]; then "
       + "cp " + Util.shellQuote(root.legacyConfigPath) + " " + Util.shellQuote(root.configPath) + "; "
@@ -925,62 +906,34 @@ Item {
 
           delegate: Row {
             required property var modelData
-            readonly property var entryKeys: modelData.entry.keys
-            readonly property bool isChordEntry: root.modCountOf(entryKeys) > 0
             spacing: root.chipGap
             opacity: root.entryOpacity(modelData.pos)
 
             Repeater {
-              model: root.chipGroups(entryKeys)
+              model: root.chipGroups(modelData.entry.segments)
 
               delegate: Rectangle {
                 required property var modelData
                 width: root.chipGroupWidth(modelData)
                 height: root.chipHeight
                 radius: Math.max(3, Style.cornerRadius - 1)
-                // Chorded entries (with modifiers) render in the accent color;
-                // plain entries use the normal text color. Named chips within
-                // plain entries get a slightly lighter fill than text chips.
-                color: isChordEntry
+                // Chord segments render in the accent color; plain
+                // segments use the normal text color.
+                color: modelData.kind === "chord"
                   ? Util.alpha(Color.accent, 0.20)
-                  : Util.alpha(Color.popups.text, modelData.kind === "named" ? 0.18 : 0.10)
-                border.color: isChordEntry
+                  : Util.alpha(Color.popups.text, 0.10)
+                border.color: modelData.kind === "chord"
                   ? Util.alpha(Color.accent, 0.45)
                   : Util.alpha(Color.popups.text, 0.35)
                 border.width: 1
 
-                // A run of consecutive plain characters (typing, or an
-                // autorepeated letter) renders as one plain fused string
-                // ("aaaaaa"), no per-letter chips and no count suffix.
                 Text {
-                  visible: modelData.kind === "text"
                   anchors.centerIn: parent
-                  text: modelData.kind === "text" ? modelData.text : ""
+                  text: modelData.text
                   font: root.chipFont
-                  color: isChordEntry ? Color.accent : Color.popups.text
-                }
-
-                // A named key (Esc, Tab, F1, Backspace, ...) keeps its own
-                // chip; a run of 2+ identical repeats collapses into one
-                // chip with the count called out in red instead of one
-                // chip per occurrence.
-                Row {
-                  visible: modelData.kind === "named"
-                  anchors.centerIn: parent
-                  spacing: 0
-
-                  Text {
-                    text: modelData.kind === "named" ? modelData.label : ""
-                    font: root.chipFont
-                    color: isChordEntry ? Color.accent : Color.popups.text
-                  }
-
-                  Text {
-                    visible: modelData.kind === "named" && modelData.count > 1
-                    text: modelData.kind === "named" ? ("×" + modelData.count) : ""
-                    font: root.chipFont
-                    color: isChordEntry ? Color.accent : Color.urgent
-                  }
+                  color: modelData.kind === "chord"
+                    ? Color.accent
+                    : Color.popups.text
                 }
               }
             }

@@ -8,7 +8,6 @@ import qs.Commons
 // Bar control for the Key Visualizer. The keyboard glyph opens a small menu
 // (KeyboardPanel, the native bar popup) with:
 //   - Show keys  toggle that pauses/resumes the on-screen display
-//   - Inline keys  fuse plain typing into one chip
 //   - Position   bottom / top / center of the screen
 //
 // The toggle writes a pause flag and the options write config.json — both
@@ -30,7 +29,6 @@ Panel {
   property int historyCount: 1
   property bool showMouse: true
   property bool cursorRing: true
-  property bool inlineKeys: false
   // Manual fine-tune offsets (px) written by the D-pad; reset when a preset
   // position is chosen from the dropdown.
   property int offsetX: 0
@@ -92,7 +90,6 @@ Panel {
     if (isFinite(cfg.historyCount)) root.historyCount = Math.max(1, Math.min(5, Math.round(cfg.historyCount)))
     root.showMouse = cfg.showMouse !== false
     root.cursorRing = cfg.cursorRing !== false
-    root.inlineKeys = cfg.inlineKeys === true
     if (isFinite(cfg.offsetX)) root.offsetX = Math.round(cfg.offsetX)
     if (isFinite(cfg.offsetY)) root.offsetY = Math.round(cfg.offsetY)
   }
@@ -107,7 +104,6 @@ Panel {
       historyCount: root.historyCount,
       showMouse: root.showMouse,
       cursorRing: root.cursorRing,
-      inlineKeys: root.inlineKeys,
       offsetX: root.offsetX,
       offsetY: root.offsetY
     }
@@ -116,7 +112,6 @@ Panel {
     if (update.historyCount !== undefined) root.historyCount = update.historyCount
     if (update.showMouse !== undefined) root.showMouse = update.showMouse
     if (update.cursorRing !== undefined) root.cursorRing = update.cursorRing
-    if (update.inlineKeys !== undefined) root.inlineKeys = update.inlineKeys
     if (update.offsetX !== undefined) root.offsetX = update.offsetX
     if (update.offsetY !== undefined) root.offsetY = update.offsetY
     writeProc.command = ["sh", "-c",
@@ -315,33 +310,6 @@ Panel {
           foreground: Color.popups.text
           accent: Color.accent
           onToggled: root.writeConfig({ cursorRing: !root.cursorRing })
-        }
-      }
-
-      // Inline keys ---------------------------------------------------
-      // When on, plain typing fuses into a single chip instead of
-      // separate per-key chips. Chords always render as inline text.
-      Item {
-        width: parent.width
-        height: inlineSwitch.implicitHeight
-
-        Text {
-          anchors.left: parent.left
-          anchors.verticalCenter: parent.verticalCenter
-          text: "Inline keys"
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body
-          color: Color.popups.text
-        }
-
-        ToggleSwitch {
-          id: inlineSwitch
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          checked: root.inlineKeys
-          foreground: Color.popups.text
-          accent: Color.accent
-          onToggled: root.writeConfig({ inlineKeys: !root.inlineKeys })
         }
       }
 
