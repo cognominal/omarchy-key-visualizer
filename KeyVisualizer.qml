@@ -79,16 +79,12 @@ Item {
 
   // Options read from config.json in the plugin folder (created with
   // defaults on first run, hot-reloaded on save):
-  //   mode     "all" | "bindings" — everything shows all keys;
-  //            bindings only shows combos with a modifier, ignoring plain
-  //            typing (tutorial mode).
   //   position one of the six corners/edges: top/bottom + left/center/right.
   //            Middle positions were dropped — the stack anchors to the top
   //            (grows down) or the bottom (grows up) edge.
   //   margin   distance from the screen edge in px (default 67).
   //   lingerMs how long a released combo stays (default 1000).
   //   historyCount how many combos stack on screen (1..5, default 1).
-  property string mode: "all"
   property string position: "bottom-center"
   property int margin: Style.space(67)
   //   showMouse  show a mouse box beside the card that lights up the
@@ -97,9 +93,8 @@ Item {
   //              (default true).
   property bool showMouse: true
   property bool cursorRing: true
-  //   inlineKeys render all keys inline in a single text string instead
-  //              of separate chips; chords join with separators and use a
-  //              different (accent) color.
+  //   inlineKeys when on, plain typing fuses into a single text chip
+  //              instead of separate per-key chips.
   property bool inlineKeys: false
   readonly property var modLabels: ["Super", "Ctrl", "Alt", "Alt R", "Shift", "Menu", "AltGr"]
 
@@ -200,12 +195,14 @@ Item {
     // and action-key glyphs always show (↑ ↓ ← →, ␣, ⇥, ↵, ⌫, …). In
     // chords they become readable shorthand: "Ctrl ↑" vs "Ctrl Up".
     keys = keys.map(function (k) { return root.textSymbols[k] || k })
+    // Chords always render as a single inline string with accent color;
+    // plain typing can fuse via inlineKeys or stay as separate chips.
+    if (isChord) {
+      return [{ kind: "text", text: keys.join(" ") }]
+    }
     if (root.inlineKeys) {
-      // Inline mode: fold everything into a single text string with no
-      // per-chip grouping. Plain typing joins without separators; chords
-      // join with spaces so modifier names are readable.
-      var joined = isChord ? keys.join(" ") : keys.join("")
-      return [{ kind: "text", text: joined }]
+      // Inline mode for plain typing: fuse without separators.
+      return [{ kind: "text", text: keys.join("") }]
     }
     var groups = []
     var i = 0
@@ -373,12 +370,6 @@ Item {
           if ((parsed.t || 0) > 0) root.lastStateT = parsed.t
         }
       } catch (e) {}
-    }    if (next.length > 0 && root.mode === "bindings") {
-      var hasMod = false
-      for (var i = 0; i < next.length; i++) {
-        if (root.modLabels.indexOf(next[i]) !== -1) { hasMod = true; break }
-      }
-      if (!hasMod) next = []
     }
 
     var nextRaw = JSON.stringify(next)
@@ -649,7 +640,6 @@ Item {
   function applyConfig(raw) {
     var cfg = {}
     try { cfg = JSON.parse(raw || "{}") } catch (e) {}
-    root.mode = cfg.mode === "bindings" ? "bindings" : "all"
     if (typeof cfg.position === "string" && cfg.position.length > 0) {
       // Pre-history versions had middle positions ("center-left" etc.);
       // they were dropped, so fold any leftover into the bottom row.
@@ -685,7 +675,6 @@ Item {
   // dragging, then commits once). Mirrors the panel's writeConfig.
   function persistConfig() {
     var cfg = {
-      mode: root.mode,
       position: root.position,
       margin: root.margin,
       lingerMs: root.lingerMs,
@@ -747,7 +736,7 @@ Item {
   function migrateConfig() {
     // First load with the new location: carry over values from the old
     // plugin-dir config (if any) and remove it, or seed the defaults.
-    var defaults = '{"mode": "all", "position": "bottom-center", "margin": 67, "lingerMs": 1000, "historyCount": 1, "showMouse": true, "cursorRing": true, "inlineKeys": false, "offsetX": 0, "offsetY": 0}'
+    var defaults = '{"position": "bottom-center", "margin": 67, "lingerMs": 1000, "historyCount": 1, "showMouse": true, "cursorRing": true, "inlineKeys": false, "offsetX": 0, "offsetY": 0}'
     migrateProc.command = ["sh", "-c",
       "if [ -f " + Util.shellQuote(root.legacyConfigPath) + " ]; then "
       + "cp " + Util.shellQuote(root.legacyConfigPath) + " " + Util.shellQuote(root.configPath) + "; "

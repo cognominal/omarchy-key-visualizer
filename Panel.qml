@@ -8,7 +8,7 @@ import qs.Commons
 // Bar control for the Key Visualizer. The keyboard glyph opens a small menu
 // (KeyboardPanel, the native bar popup) with:
 //   - Show keys  toggle that pauses/resumes the on-screen display
-//   - Mode       all keys, or bindings only (combos with a modifier)
+//   - Inline keys  fuse plain typing into one chip
 //   - Position   bottom / top / center of the screen
 //
 // The toggle writes a pause flag and the options write config.json — both
@@ -24,7 +24,6 @@ Panel {
   // Mirrors of the files the display panel watches; these stay in sync via
   // the FileViews below.
   property bool paused: false
-  property string mode: "all"
   property string position: "bottom-center"
   property int margin: 67
   property int lingerMs: 1000
@@ -87,7 +86,6 @@ Panel {
   function applyConfig(raw) {
     var cfg = {}
     try { cfg = JSON.parse(raw || "{}") } catch (e) {}
-    root.mode = cfg.mode === "bindings" ? "bindings" : "all"
     if (typeof cfg.position === "string" && cfg.position.length > 0) root.position = cfg.position
     if (isFinite(cfg.margin) && cfg.margin >= 0) root.margin = Math.round(cfg.margin)
     if (isFinite(cfg.lingerMs) && cfg.lingerMs >= 0) root.lingerMs = Math.round(cfg.lingerMs)
@@ -103,7 +101,6 @@ Panel {
   // panel or the user set directly in config.json.
   function writeConfig(update) {
     var cfg = {
-      mode: root.mode,
       position: root.position,
       margin: root.margin,
       lingerMs: root.lingerMs,
@@ -115,7 +112,6 @@ Panel {
       offsetY: root.offsetY
     }
     for (var k in update) cfg[k] = update[k]
-    if (update.mode !== undefined) root.mode = update.mode
     if (update.position !== undefined) root.position = update.position
     if (update.historyCount !== undefined) root.historyCount = update.historyCount
     if (update.showMouse !== undefined) root.showMouse = update.showMouse
@@ -235,8 +231,7 @@ Panel {
     open: root.opened
     contentWidth: panel.fittedContentWidth(
       Math.max(Style.space(250),
-        filterLabel.implicitWidth + Style.spacing.xl + modeButtons.implicitWidth
-          + panel.padding * 2 + Border.left(panel.borderSpec) + Border.right(panel.borderSpec)))
+        + panel.padding * 2 + Border.left(panel.borderSpec) + Border.right(panel.borderSpec)))
     contentHeight: menuColumn.implicitHeight + panel.padding * 2
 
     Column {
@@ -324,9 +319,8 @@ Panel {
       }
 
       // Inline keys ---------------------------------------------------
-      // Render all keys in a single text string (chords join with
-      // separators, plain typing fuses tight); chord entries get the
-      // accent color to distinguish them.
+      // When on, plain typing fuses into a single chip instead of
+      // separate per-key chips. Chords always render as inline text.
       Item {
         width: parent.width
         height: inlineSwitch.implicitHeight
@@ -348,44 +342,6 @@ Panel {
           foreground: Color.popups.text
           accent: Color.accent
           onToggled: root.writeConfig({ inlineKeys: !root.inlineKeys })
-        }
-      }
-
-      // Display mode --------------------------------------------------
-      Item {
-        width: parent.width
-        height: modeButtons.height
-
-        Text {
-          id: filterLabel
-          anchors.left: parent.left
-          anchors.verticalCenter: parent.verticalCenter
-          text: "Display mode"
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body
-          color: Color.popups.text
-        }
-
-        Row {
-          id: modeButtons
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.spacing.xs
-
-          Button {
-            text: "Everything"
-            selected: root.mode !== "bindings"
-            foreground: Color.popups.text
-            accent: Color.accent
-            onClicked: root.writeConfig({ mode: "all" })
-          }
-          Button {
-            text: "Chords only"
-            selected: root.mode === "bindings"
-            foreground: Color.popups.text
-            accent: Color.accent
-            onClicked: root.writeConfig({ mode: "bindings" })
-          }
         }
       }
 
