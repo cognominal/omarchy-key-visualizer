@@ -351,6 +351,9 @@ Item {
     root.lastAppliedNextRaw = nextRaw
 
     var isChord = root.modCountOf(next) > 0
+    // Mods of nothing: bare modifiers alone never create or update a
+    // segment. The chord only appears once a non-modifier key joins.
+    if (next.length > 0 && root.modCountOf(next) >= next.length) return
     var es = root.entries.slice()
 
     if (next.length === 0) {
