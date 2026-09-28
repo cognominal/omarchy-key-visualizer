@@ -926,33 +926,33 @@ Item {
             spacing: root.chipGap
             opacity: root.entryOpacity(modelData.pos)
 
-            Repeater {
-              model: root.chipGroups(modelData.entry.segments)
+            // Single chip for the whole entry — segments flow as colored
+            // text spans inside one box instead of per-segment rectangles.
+            Rectangle {
+              width: root.rowWidth(modelData.entry.segments)
+              height: root.chipHeight
+              radius: Math.max(3, Style.cornerRadius - 1)
+              color: Util.alpha(Color.popups.text, 0.10)
+              border.color: Util.alpha(Color.popups.text, 0.35)
+              border.width: 1
 
-              delegate: Rectangle {
-                required property var modelData
-                width: root.chipGroupWidth(modelData)
-                height: root.chipHeight
-                radius: Math.max(3, Style.cornerRadius - 1)
-                // Chord segments render in the accent color; plain
-                // segments use the normal text color.
-                color: modelData.kind === "chord"
-                  ? Util.alpha(Color.accent, 0.20)
-                  : Util.alpha(Color.popups.text, 0.10)
-                border.color: modelData.kind === "chord"
-                  ? Util.alpha(Color.accent, 0.45)
-                  : Util.alpha(Color.popups.text, 0.35)
-                border.width: 1
+              Row {
+                anchors.centerIn: parent
+                spacing: 0
+                Repeater {
+                  model: root.chipGroups(modelData.entry.segments)
 
-                Text {
-                  anchors.centerIn: parent
-                  text: modelData.text
-                  font: root.chipFont
-                  color: modelData.kind === "chord"
-                    ? Color.accent
-                    : Color.popups.text
+                  delegate: Text {
+                    required property var modelData
+                    text: modelData.text
+                    font: root.chipFont
+                    color: modelData.kind === "chord"
+                      ? Color.accent
+                      : Color.popups.text
+                  }
                 }
               }
+            }
             }
           }
         }
