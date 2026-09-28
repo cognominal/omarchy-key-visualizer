@@ -184,6 +184,7 @@ Item {
     "Down": "\u2193",      // ↓  DOWNWARDS ARROW
     "Left": "\u2190",      // ←  LEFTWARDS ARROW
     "Right": "\u2192",     // →  RIGHTWARDS ARROW
+    "Caps": "\u21EA",       // ⇪  UPWARDS WHITE ARROW FROM BAR
   })
 
   function chipGroups(segments) {
