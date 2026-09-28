@@ -178,7 +178,8 @@ Item {
   // current string chip; other action keys (Enter, Backspace, Del, Esc)
   // also get a Unicode glyph (↵, ⌫, ⌦, ⎋) so they're legible in the
   // typing stream. Directional arrows get symbols (↑ ↓ ← →) as well.
-  // In a chord (Alt+Tab, Super+Space) they stay named.
+  // TextSymbols apply to all keys regardless of chord status, so "Ctrl ↑"
+  // reads as a direction shorthand instead of "Ctrl Up".
   readonly property var textSymbols: ({
     "Space": "\u2423",     // ␣  OPEN BOX
     "Tab": "\u21E5",       // ⇥  RIGHTWARDS ARROW TO BAR
@@ -194,9 +195,10 @@ Item {
 
   function chipGroups(keys) {
     var isChord = root.modCountOf(keys) > 0
-    if (!isChord) {
-      keys = keys.map(function (k) { return root.textSymbols[k] || k })
-    }
+    // Apply textSymbols to all keys regardless of chord status so arrows
+    // and action-key glyphs always show (↑ ↓ ← →, ␣, ⇥, ↵, ⌫, …). In
+    // chords they become readable shorthand: "Ctrl ↑" vs "Ctrl Up".
+    keys = keys.map(function (k) { return root.textSymbols[k] || k })
     if (root.inlineKeys) {
       // Inline mode: fold everything into a single text string with no
       // per-chip grouping. Plain typing joins without separators; chords
