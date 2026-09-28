@@ -392,11 +392,28 @@ Item {
         es[0] = { segments: appended, releasedAt: 0 }
       }
     } else {
-      // Previous entry was released (or none exists). Start fresh.
-      if (es.length > 0 && es[0].releasedAt === 0) {
-        es[0] = { segments: es[0].segments, releasedAt: Date.now() }
+      // Previous entry was released (or none exists).
+      if (es.length > 0 && es[0].releasedAt !== 0 &&
+          (root.lingerMs <= 0 || Date.now() - es[0].releasedAt < root.lingerMs * 2 / 3)) {
+        // Released recently: append as a new segment to the current entry.
+        var appended = es[0].segments.slice()
+        appended.push({ kind: isChord ? "chord" : "plain", keys: next.slice() })
+        // Cap total keys to typingGroupMaxKeys (drop oldest segments).
+        var total = 0
+        for (var si2 = 0; si2 < appended.length; si2++)
+          total += appended[si2].keys.length
+        while (total > root.typingGroupMaxKeys && appended.length > 1) {
+          total -= appended[0].keys.length
+          appended.shift()
+        }
+        es[0] = { segments: appended, releasedAt: 0 }
+      } else {
+        // Stale release or no entry: start fresh.
+        if (es.length > 0 && es[0].releasedAt === 0) {
+          es[0] = { segments: es[0].segments, releasedAt: Date.now() }
+        }
+        es.unshift({ segments: [{ kind: isChord ? "chord" : "plain", keys: next.slice() }], releasedAt: 0 })
       }
-      es.unshift({ segments: [{ kind: isChord ? "chord" : "plain", keys: next.slice() }], releasedAt: 0 })
     }
     root.entries = root.trimEntries(es)
     root.updateOpened()
