@@ -926,33 +926,16 @@ Item {
             spacing: root.chipGap
             opacity: root.entryOpacity(modelData.pos)
 
-            // Single chip for the whole entry — segments flow as colored
-            // text spans inside one box instead of per-segment rectangles.
-            Rectangle {
-              width: root.rowWidth(modelData.entry.segments)
-              height: root.chipHeight
-              radius: Math.max(3, Style.cornerRadius - 1)
-              color: Util.alpha(Color.popups.text, 0.10)
-              border.color: Util.alpha(Color.popups.text, 0.35)
-              border.width: 1
+            // Single line per entry, all segments rendered inline
+            Repeater {
+              model: root.chipGroups(modelData.entry.segments)
 
-              Row {
-                anchors.centerIn: parent
-                spacing: 0
-                Repeater {
-                  model: root.chipGroups(modelData.entry.segments)
-
-                  delegate: Text {
-                    required property var modelData
-                    text: modelData.text
-                    font: root.chipFont
-                    color: modelData.kind === "chord"
-                      ? Color.accent
-                      : Color.popups.text
-                  }
-                }
+              delegate: Text {
+                required property var modelData
+                text: modelData.text
+                font: root.chipFont
+                color: modelData.kind === "chord" ? Color.accent : Color.popups.text
               }
-            }
             }
           }
         }
