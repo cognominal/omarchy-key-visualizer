@@ -96,8 +96,9 @@ Item {
   //              (default true).
   property bool showMouse: true
   property bool cursorRing: true
-  //   inlineKeys render named-key glyphs inline in the text string instead
-  //              of as separate chips; chorded entries use a different color.
+  //   inlineKeys render all keys inline in a single text string instead
+  //              of separate chips; chords join with separators and use a
+  //              different (accent) color.
   property bool inlineKeys: false
   readonly property var modLabels: ["Super", "Ctrl", "Alt", "Alt R", "Shift", "Menu", "AltGr"]
 
@@ -176,7 +177,8 @@ Item {
   // they're rendered as their Unicode symbols (␣, ⇥) and fused into the
   // current string chip; other action keys (Enter, Backspace, Del, Esc)
   // also get a Unicode glyph (↵, ⌫, ⌦, ⎋) so they're legible in the
-  // typing stream. In a chord (Alt+Tab, Super+Space) they stay named.
+  // typing stream. Directional arrows get symbols (↑ ↓ ← →) as well.
+  // In a chord (Alt+Tab, Super+Space) they stay named.
   readonly property var textSymbols: ({
     "Space": "\u2423",     // ␣  OPEN BOX
     "Tab": "\u21E5",       // ⇥  RIGHTWARDS ARROW TO BAR
@@ -184,6 +186,10 @@ Item {
     "Backspace": "\u232B",  // ⌫  ERASE TO THE LEFT
     "Del": "\u2326",        // ⌦  ERASE TO THE RIGHT
     "Esc": "\u238B",        // ⎋  BROKEN CIRCLE WITH NORTHWEST ARROW
+    "Up": "\u2191",        // ↑  UPWARDS ARROW
+    "Down": "\u2193",      // ↓  DOWNWARDS ARROW
+    "Left": "\u2190",      // ←  LEFTWARDS ARROW
+    "Right": "\u2192",     // →  RIGHTWARDS ARROW
   })
 
   function chipGroups(keys) {
@@ -191,10 +197,12 @@ Item {
     if (!isChord) {
       keys = keys.map(function (k) { return root.textSymbols[k] || k })
     }
-    if (root.inlineKeys && !isChord) {
-      // Inline mode: fold everything into a single text string, named-key
-      // glyphs included. No per-chip grouping; it renders as one chip.
-      return [{ kind: "text", text: keys.join("") }]
+    if (root.inlineKeys) {
+      // Inline mode: fold everything into a single text string with no
+      // per-chip grouping. Plain typing joins without separators; chords
+      // join with spaces so modifier names are readable.
+      var joined = isChord ? keys.join(" ") : keys.join("")
+      return [{ kind: "text", text: joined }]
     }
     var groups = []
     var i = 0

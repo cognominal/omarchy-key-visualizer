@@ -324,8 +324,9 @@ Panel {
       }
 
       // Inline keys ---------------------------------------------------
-      // Render named-key glyphs (␣, ⇥, ↵, ⌫, …) inline in the text string
-      // instead of as separate chips; chorded entries get a different color.
+      // Render all keys in a single text string (chords join with
+      // separators, plain typing fuses tight); chord entries get the
+      // accent color to distinguish them.
       Item {
         width: parent.width
         height: inlineSwitch.implicitHeight
