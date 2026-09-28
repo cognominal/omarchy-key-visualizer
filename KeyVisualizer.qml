@@ -351,9 +351,6 @@ Item {
     root.lastAppliedNextRaw = nextRaw
 
     var isChord = root.modCountOf(next) > 0
-    // Mods of nothing: bare modifiers alone never create or update a
-    // segment. The chord only appears once a non-modifier key joins.
-    if (next.length > 0 && root.modCountOf(next) >= next.length) return
     var es = root.entries.slice()
 
     if (next.length === 0) {
@@ -377,9 +374,9 @@ Item {
         // Same keys again (autorepeat / duplicate write): refresh, no
         // duplicate segment.
         es[0] = { segments: es[0].segments, releasedAt: 0 }
-      } else if (es[0].segments.length === 1 && root.isSupersetOf(lastSeg.keys, next)) {
-        // Building a chord key-by-key: update the segment in place.
-        es[0].segments[0] = { kind: isChord ? "chord" : "plain", keys: next.slice() }
+      } else if (lastSeg && lastSeg.kind === (isChord ? "chord" : "plain") && root.isSupersetOf(lastSeg.keys, next)) {
+        // Building a chord key-by-key: update the last segment in place.
+        es[0].segments[es[0].segments.length - 1] = { kind: lastSeg.kind, keys: next.slice() }
         es[0] = { segments: es[0].segments, releasedAt: 0 }
       } else if (lastSeg && lastSeg.kind === (isChord ? "chord" : "plain")
                  && next.length < lastSeg.keys.length
