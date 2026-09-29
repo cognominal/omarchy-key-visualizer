@@ -38,11 +38,6 @@ Item {
   // second, content-identical file-changed event; without this guard that
   // redundant re-apply() re-derives the same "next" from a since-mutated
   // top entry (e.g. after a merge) and no longer recognizes it as the same
-  // Applies the same data and removes the need for the echo guard.
-  // Debounce window for chmod-triggered duplicates (50ms).
-  property string lastAppliedJson: ""
-  property real lastAppliedJsonT: 0
-  // How many combos stay on screen (1..5, default 1). Older entries fade
   // out via the entryOpacity() gradient; a count of 1 is the classic
   // current-combo-only display.
   property int historyCount: 1
@@ -348,13 +343,6 @@ Item {
     }
 
     var nextRaw = JSON.stringify(next)
-    // Dedup chmod bounces: same payload within 50ms is a chmod echo.
-    // Real autorepeat (plain keys) comes at ~50-100ms intervals, so
-    // allow same payload through after the debounce window expires.
-    if (nextRaw === root.lastAppliedJson && Date.now() - root.lastAppliedJsonT < 50) return
-    root.lastAppliedJson = nextRaw
-    root.lastAppliedJsonT = Date.now()
-
     var isChord = root.modCountOf(next) > 0
     var es = root.entries.slice()
 
@@ -660,7 +648,6 @@ Item {
     root.paused = p
     root.pauseStateKnown = true
     if (!changed) return
-    root.lastAppliedJson = ""
     root.statusText = "Key visualizer " + (p ? "off" : "on")
     statusTimer.restart()
   }
