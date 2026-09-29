@@ -377,7 +377,7 @@ Item {
         // Building a chord key-by-key: update the last segment in place.
         es[0].segments[es[0].segments.length - 1] = { kind: lastSeg.kind, keys: next.slice() }
         es[0] = { segments: es[0].segments, releasedAt: 0 }
-      } else if (lastSeg && lastSeg.kind === (isChord ? "chord" : "plain")
+      } else if (lastSeg && lastSeg.kind === "chord"
                  && next.length < lastSeg.keys.length
                  && next.every(function(k) { return lastSeg.keys.indexOf(k) !== -1 })) {
         // Chord teardown: a modifier/released key went up. Update the
