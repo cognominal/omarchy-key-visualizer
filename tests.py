@@ -374,4 +374,58 @@ TESTS.append(("Shift+A autorepeat", [
 
 
 if __name__ == "__main__":
-    run_all()
+    passed = 0
+    failed = 0
+    for name, steps in TESTS:
+        ok = test(name, steps)
+        if ok:
+            passed += 1
+            print(f"  PASS {name}")
+        else:
+            failed += 1
+    print(f"\n{'='*50}")
+    print(f"  {passed} passed, {failed} failed out of {passed + failed}")
+    
+    # Rapid autorepeat: 20 ticks at 40ms — still held (inotify coalesced [])
+    print("  Rapid autorepeat 20 ticks (still held)...")
+    sim = Sim()
+    sim.apply(["A"])
+    for i in range(20):
+        sim.advance_ms(40)
+        sim.apply(["A"])
+    total = len(sim.entries[0].segments[0].keys)
+    if total == 21:
+        print(f"    PASS — {total} chars")
+    else:
+        print(f"    FAIL — expected 21 chars, got {total}")
+    
+    # emit_repeat_tick pattern: [] then ["A"] each tick
+    print("  Rapid autorepeat 20 ticks (release+re-press)...")
+    sim = Sim()
+    sim.apply(["A"])
+    for i in range(20):
+        sim.advance_ms(40)
+        sim.apply([])          # empty from emit_repeat_tick
+        sim.advance_ms(1)
+        sim.apply(["A"])       # keys from emit()
+    total = len(sim.entries[0].segments[0].keys)
+    if total == 21:
+        print(f"    PASS — {total} chars\n")
+    else:
+        print(f"    FAIL — expected 21 chars, got {total}\n")
+    
+    # Shift+A rapid autorepeat: Shift folded by Lua, then rapid A repeats
+    print("  Rapid Shift+A autorepeat 20 ticks...")
+    sim = Sim()
+    sim.apply(["Shift"])
+    sim.apply(["A"])          # pure-mod replacement → plain ["A"]
+    for i in range(20):
+        sim.advance_ms(40)
+        sim.apply([])          # emit_repeat_tick writes empty
+        sim.advance_ms(1)
+        sim.apply(["A"])       # emit() writes ["A"]
+    total = len(sim.entries[0].segments[0].keys)
+    if total == 21:
+        print(f"    PASS — {total} chars\n")
+    else:
+        print(f"    FAIL — expected 21 chars, got {total}\n")
